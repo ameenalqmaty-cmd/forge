@@ -112,3 +112,4 @@ List everything you added on your own in the final report so the user can remove
 - `qa.config.json` → `{ "routes": ["home", "…"] }` — add every route/screen you create.
 - Full-page screenshots show fixed bars (bottom nav) at their viewport position — that's expected, not a bug.
 - A warning is not a pass for ugliness: if a screenshot looks cramped or empty, fix it even if QA passes.
+- Hash route names: ASCII letters/digits/hyphens; avoid reserved names (settings, sidebar, customize, upgrade, downloads) if the app may be previewed as a claude.ai artifact.

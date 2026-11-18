@@ -1,1 +1,1 @@
-{ "routes": ["home", "components", "auth", "settings"], "themes": ["calm", "playful", "luxe", "edu", "game"] }
+{ "routes": ["home", "components", "auth", "themes"], "themes": ["calm", "playful", "luxe", "edu", "game"] }

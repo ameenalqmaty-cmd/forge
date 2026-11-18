@@ -14,7 +14,7 @@ const NAV: NavItem[] = [
   { id: "components", label: "المكوّنات", icon: Component },
   { id: "auth", label: "الدخول", icon: LogIn },
   ...(embed ? [] : [{ id: "devices", label: "الأجهزة", icon: MonitorSmartphone }]),
-  { id: "settings", label: "الثيمات", icon: Palette },
+  { id: "themes", label: "الثيمات", icon: Palette },
 ];
 
 function useHashRoute(fallback: string) {
@@ -34,7 +34,7 @@ export default function App() {
   const c = CONTENT[theme];
 
   const screens: Record<string, React.ReactNode> = {
-    home: <HomeScreen />, components: <ComponentsScreen />, auth: <AuthScreen />, devices: <DevicesScreen />, settings: <SettingsScreen />,
+    home: <HomeScreen />, components: <ComponentsScreen />, auth: <AuthScreen />, devices: <DevicesScreen />, themes: <SettingsScreen />,
   };
 
   return (
