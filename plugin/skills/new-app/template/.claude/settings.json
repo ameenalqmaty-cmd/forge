@@ -1,0 +1,10 @@
+{
+  "extraKnownMarketplaces": {
+    "forge": {
+      "source": { "source": "github", "repo": "ameenalqmaty-cmd/forge" }
+    }
+  },
+  "enabledPlugins": {
+    "forge@forge": true
+  }
+}

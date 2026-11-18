@@ -1,0 +1,9 @@
+{
+  "name": "Forge — معرض الواجهات",
+  "shortName": "Forge",
+  "description": "قالب Forge لبناء التطبيقات بواجهات احترافية",
+  "appId": "com.ahmed.forge",
+  "version": "1.0.0",
+  "theme": "edu",
+  "cloudflareProject": "forge-showcase"
+}

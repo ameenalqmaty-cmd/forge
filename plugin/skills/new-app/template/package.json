@@ -1,5 +1,5 @@
 {
-  "name": "forge",
+  "name": "forge-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,9 +9,16 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "qa": "node scripts/qa.mjs",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "assets": "node scripts/assets.mjs",
+    "android:sync": "npm run build && npm run assets && npx cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@fontsource-variable/cairo": "^5.3.0",
     "@fontsource-variable/readex-pro": "^5.3.0",
     "@fontsource/el-messiri": "^5.3.0",
@@ -34,12 +41,14 @@
     "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.90.0",
+    "sharp": "^0.35.5",
     "typescript": "~7.0.2",
     "vite": "^8.3.6"
   }

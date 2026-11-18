@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Foreground only (transparent background). Keep the mark inside the central 66% (Android safe zone). -->
+  <path fill="#ffffff" d="M256 120c10 64 40 104 112 136-72 32-102 72-112 136-10-64-40-104-112-136 72-32 102-72 112-136z"/>
+  <circle cx="356" cy="150" r="22" fill="#ffffff" opacity=".85"/>
+</svg>

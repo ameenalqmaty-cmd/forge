@@ -1,0 +1,61 @@
+# Every push: build → visual QA → deploy to Cloudflare Pages.
+#   main branch  → production URL  (https://<project>.pages.dev)
+#   other branch → preview URL      (https://<branch>.<project>.pages.dev)
+# Needs repository secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (otherwise deploy is skipped).
+name: Web — QA & deploy
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Generate icons & manifest
+        run: npm run assets
+
+      - name: Visual QA (phone, tablet, desktop · light + dark)
+        run: |
+          npx playwright install --with-deps chromium
+          CI=1 npm run qa
+
+      - name: Upload QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-screens-${{ github.run_number }}
+          path: qa/screens
+          retention-days: 7
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::warning::No Cloudflare secrets — deploy skipped"; exit 0; fi
+          PROJECT=$(jq -r '.cloudflareProject' forge.config.json)
+          npx wrangler@4 pages project create "$PROJECT" --production-branch=main 2>/dev/null || true
+          npx wrangler@4 pages deploy dist --project-name="$PROJECT" --branch="${GITHUB_REF_NAME}" --commit-hash="$GITHUB_SHA" --commit-message="$(git log -1 --pretty=%s | head -c 200)"

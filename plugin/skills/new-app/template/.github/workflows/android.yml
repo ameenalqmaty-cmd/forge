@@ -1,0 +1,90 @@
+# Builds the Android APK on every push to main and publishes it as a GitHub Release.
+# Install on the phone: open the release → download the .apk.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Prepare Android project
+        run: |
+          [ -d android ] || npx cap add android
+          npm run assets
+          npx cap sync android
+
+      - name: Set version (versionCode = build number)
+        run: |
+          VERSION=$(jq -r '.version // "1.0.0"' forge.config.json)
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "APP=$(jq -r '.appId | split(".") | last' forge.config.json)" >> "$GITHUB_ENV"
+
+      - name: Use the fixed debug key (updates install over previous builds)
+        run: mkdir -p ~/.android && cp signing/debug.keystore ~/.android/debug.keystore
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon -q
+
+      - name: Release build (only if a release key is configured)
+        if: ${{ env.HAS_KEY == 'true' }}
+        working-directory: android
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          SIGN="-Pandroid.injected.signing.store.file=$PWD/release.keystore -Pandroid.injected.signing.store.password=${{ secrets.ANDROID_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.ANDROID_KEY_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.ANDROID_KEY_PASSWORD }}"
+          ./gradlew assembleRelease bundleRelease --no-daemon -q $SIGN
+
+      - name: Collect files
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/${APP}-${VERSION}-build${{ github.run_number }}.apk"
+          [ -f android/app/build/outputs/apk/release/app-release.apk ] && cp android/app/build/outputs/apk/release/app-release.apk "out/${APP}-${VERSION}-release.apk" || true
+          [ -f android/app/build/outputs/bundle/release/app-release.aab ] && cp android/app/build/outputs/bundle/release/app-release.aab "out/${APP}-${VERSION}-play.aab" || true
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-build-${{ github.run_number }}
+          path: out/*
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "${{ env.APP }} ${{ env.VERSION }} — build ${{ github.run_number }}"
+          body: "Commit: ${{ github.sha }}\n\n${{ github.event.head_commit.message }}"
+          files: out/*
+          make_latest: true

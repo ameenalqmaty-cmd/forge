@@ -1,0 +1,12 @@
+{
+  "name": "forge",
+  "owner": { "name": "Ahmed Alqmaty" },
+  "metadata": { "description": "Ahmed's personal app factory for Claude Code" },
+  "plugins": [
+    {
+      "name": "forge",
+      "source": "./plugin",
+      "description": "Build complete, professional Arabic apps, sites, systems and games from one prompt: themed UI kit, responsive shell, visual QA, icons, APK and web deploy."
+    }
+  ]
+}
