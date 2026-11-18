@@ -78,11 +78,12 @@ export function AppShell({
                 aria-current={on ? "page" : undefined}
                 className={cn("relative flex flex-1 flex-col items-center justify-center gap-1 text-[0.7rem] font-medium transition-colors", on ? "text-primary" : "text-muted-foreground")}
               >
-                <span className={cn("grid h-7 w-14 place-items-center rounded-full transition-colors", on && "bg-primary/12")}>
+                <span className={cn("relative grid h-7 w-14 place-items-center rounded-full transition-colors", on && "bg-primary/12")}>
                   <item.icon className="size-5" strokeWidth={on ? 2.4 : 2} />
+                  {/* badge sits on the icon's top-end corner, never over the icon itself */}
+                  {!!item.badge && <span className="absolute -top-1.5 end-1 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-destructive px-1 text-[0.6rem] font-bold leading-none text-white ring-2 ring-card">{item.badge}</span>}
                 </span>
                 {item.label}
-                {!!item.badge && <span className="absolute top-1.5 start-1/2 ms-2 grid min-w-4.5 place-items-center rounded-full bg-destructive px-1 text-[0.6rem] font-bold text-white">{item.badge}</span>}
               </button>
             );
           })}

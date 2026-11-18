@@ -36,7 +36,11 @@ if (!process.argv.includes("--no-build")) await run("npx", ["vite", "build", "--
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore" });
+// own process group so the whole npx → vite tree dies afterwards (a leftover server would make the
+// NEXT qa run silently screenshot the wrong app on the same port)
+const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "ignore", detached: process.platform !== "win32", shell: process.platform === "win32" });
+const stopServer = () => { try { process.platform === "win32" ? server.kill() : process.kill(-server.pid, "SIGTERM"); } catch { /* already gone */ } };
+process.on("exit", stopServer);
 await new Promise((r) => setTimeout(r, 1800));
 
 const launch = { args: ["--font-render-hinting=none"] };
@@ -95,7 +99,7 @@ try {
   }
 } finally {
   await browser.close();
-  server.kill();
+  stopServer();
 }
 
 const total = THEMES.length * ROUTES.length * VIEWPORTS.length * MODES.length;

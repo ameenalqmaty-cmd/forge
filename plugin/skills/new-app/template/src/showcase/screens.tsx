@@ -164,7 +164,7 @@ export function SettingsScreen() {
         <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-3">
           {THEMES.map((t) => (
             <button key={t.id} data-theme={t.id} onClick={() => { setTheme(t.id); setMode(t.defaultDark ? "dark" : "light"); }}
-              className={cn("relative rounded-xl border-2 bg-background p-4 text-start text-foreground transition-all", theme === t.id ? "border-primary shadow-card" : "border-border hover:border-primary/50")}>
+              className={cn("relative rounded-xl border-2 bg-background p-4 xs:max-lg:last:odd:col-span-2 text-start text-foreground transition-all", theme === t.id ? "border-primary shadow-card" : "border-border hover:border-primary/50")}>
               <div className="mb-3 flex gap-1.5">
                 {["bg-primary", "bg-accent", "bg-secondary", "bg-muted"].map((b) => <span key={b} className={cn("size-6 rounded-full border border-border", b)} />)}
               </div>
