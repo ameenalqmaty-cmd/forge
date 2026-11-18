@@ -1,11 +1,12 @@
-# Builds the Android APK on every push to main and publishes it as a GitHub Release.
-# Install on the phone: open the release → download the .apk.
+# Builds the Android APK ON DEMAND only (not on every push — previews are the web build).
+# Triggers: Forge Studio's "تثبيت مباشر" button / "Run workflow" in Actions (workflow_dispatch),
+# or pushing a version tag like v1.2.0. Publishes a GitHub Release with the .apk.
 name: Android APK
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+  push:
+    tags: ["v*"]
 
 permissions:
   contents: write

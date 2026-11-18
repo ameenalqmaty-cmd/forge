@@ -5,7 +5,8 @@
 ## التثبيت (مرة واحدة على كل جهاز)
 
 ```
-/plugin install forge --marketplace ameenalqmaty-cmd/forge
+/plugin marketplace add ameenalqmaty-cmd/forge
+/plugin install forge@forge
 ```
 
 وللتحديث بعد أي إضافة جديدة: `/plugin marketplace update forge`

@@ -22,7 +22,7 @@ Result: `main` → `https://<cloudflareProject>.pages.dev`; any other branch →
 
 ## Android APK — direct install
 
-Every push to `main` creates a GitHub Release `build-N` with `<app>-<version>-buildN.apk`. On the phone: repo → Releases → latest → download the APK → install (allow "install unknown apps" once). Bump `version` in `forge.config.json` for a visible version change; the build number becomes `versionCode` automatically.
+APKs are built **on demand only** (previews are the web build, so edits never wait on Android). Trigger: Actions → "Android APK" → Run workflow (Forge Studio's "تثبيت مباشر" calls the same `workflow_dispatch`), or push a tag `vX.Y.Z`. Each run creates a GitHub Release `build-N` with `<app>-<version>-buildN.apk`. On the phone: repo → Releases → latest → download the APK → install (allow "install unknown apps" once). Bump `version` in `forge.config.json` for a visible version change; the build number becomes `versionCode` automatically.
 
 ## Google Play
 

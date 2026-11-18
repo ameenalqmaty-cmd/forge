@@ -63,7 +63,7 @@ git add -A && git commit -m "<app>: first version" && git push
 
 Pushing triggers:
 - **Web — QA & deploy**: QA in CI, then Cloudflare Pages (`https://<cloudflareProject>.pages.dev`) if the repo has `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets.
-- **Android APK**: a GitHub Release `build-N` with the `.apk` to install directly on the phone. Every build is signed with the same key, so new builds install as updates.
+- **Android APK** (on demand — not built on push): run the "Android APK" workflow (`gh workflow run android.yml`) when the user wants to install; it publishes a GitHub Release `build-N` with the `.apk`. Every build is signed with the same key, so new builds install as updates.
 
 If secrets are missing, tell the user exactly what to add (see the `publish-app` skill) — don't block on it.
 
