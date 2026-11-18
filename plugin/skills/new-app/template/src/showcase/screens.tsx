@@ -20,7 +20,7 @@ import { pct } from "@/lib/format";
 /* ------------------------------ Home ------------------------------ */
 export function HomeScreen() {
   const { theme } = useTheme();
-  const c = CONTENT[theme];
+  const c = CONTENT[theme] ?? CONTENT.calm;
   return (
     <div className="animate-rise" key={theme}>
       <PageHeader title={c.greeting} subtitle={c.sub} action={<Button size="sm" variant="outline" className="hidden sm:inline-flex"><Plus />جديد</Button>} />
@@ -131,7 +131,7 @@ export function ComponentsScreen() {
 /* ------------------------------ Auth ------------------------------ */
 export function AuthScreen() {
   const { theme } = useTheme();
-  const c = CONTENT[theme];
+  const c = CONTENT[theme] ?? CONTENT.calm;
   return (
     <div className="animate-rise grid min-h-[70dvh] place-items-center">
       <div className="w-full max-w-sm">

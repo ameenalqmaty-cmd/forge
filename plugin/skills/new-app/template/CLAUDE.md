@@ -44,6 +44,8 @@ Pick ONE preset in `<ThemeProvider defaultTheme="…">` (src/main.tsx) and set `
 | `edu` | education, Quran / hifz, study, health, community |
 | `game` | games, challenges, leaderboards, entertainment |
 
+Forge Studio may also install a theme from the user's design library (a `/* forge-theme:<id> */` block in `themes.css`, its file in `.forge/theme.json`). Treat it exactly like a preset, and follow its `guide` and `layout` notes.
+
 For a brand color: copy the closest preset in `src/styles/themes.css` and change hues only; keep text contrast ≥ 4.5:1 in light AND dark. Remove the theme switcher from production apps unless the user wants it; keep light/dark.
 
 ## 3. Design rules (non-negotiable)

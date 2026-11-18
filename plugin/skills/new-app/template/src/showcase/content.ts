@@ -2,7 +2,6 @@ import {
   BookOpen, CalendarCheck, Coins, Crown, Flame, Gamepad2, Gem, GraduationCap, Heart, Hotel, MessageCircle,
   PartyPopper, Receipt, Star, Swords, Target, Trophy, Users, Wallet, Briefcase, type LucideIcon,
 } from "lucide-react";
-import type { ThemeId } from "@/lib/theme";
 
 type Content = {
   app: string; logo: LucideIcon; greeting: string; sub: string;
@@ -14,7 +13,7 @@ type Content = {
 };
 
 // Sample content per theme — shows how the same components fit different app types.
-export const CONTENT: Record<ThemeId, Content> = {
+export const CONTENT: Record<string, Content> = {
   calm: {
     app: "دفتر", logo: Briefcase, greeting: "صباح الخير، أحمد", sub: "هذا ملخص أعمالك لهذا الأسبوع",
     hero: { eyebrow: "تقرير نوفمبر جاهز", title: "الإيرادات ارتفعت ١٨٪", body: "أفضل أسبوع منذ بداية الربع. راجع التفاصيل وصدّر التقرير.", cta: "عرض التقرير", icon: Receipt },

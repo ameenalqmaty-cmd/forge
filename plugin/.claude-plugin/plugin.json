@@ -1,8 +1,18 @@
 {
   "name": "forge",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Personal app factory: one prompt → a professional Arabic (RTL) app with themed UI, responsive layout for phone/tablet/desktop, automatic visual QA, all icons, Android APK and Cloudflare deploy.",
-  "author": { "name": "Ahmed Alqmaty" },
+  "author": {
+    "name": "Ahmed Alqmaty"
+  },
   "repository": "https://github.com/ameenalqmaty-cmd/forge",
-  "keywords": ["app-builder", "react", "capacitor", "arabic", "rtl", "pwa", "apk"]
+  "keywords": [
+    "app-builder",
+    "react",
+    "capacitor",
+    "arabic",
+    "rtl",
+    "pwa",
+    "apk"
+  ]
 }
