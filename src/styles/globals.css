@@ -1,0 +1,139 @@
+/* =========================================================================
+   FORGE — Global styles
+   1) Tailwind + design tokens   2) Theme presets   3) App-feel fixes
+   Do NOT add ad-hoc colors/sizes in components — use the tokens below.
+   ========================================================================= */
+@import "tailwindcss";
+@import "./themes.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Map CSS variables (set per theme) → Tailwind utilities: bg-primary, text-muted-foreground, rounded-lg ... */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+
+  --shadow-card: var(--card-shadow);
+}
+
+/* Fluid type scale — one scale for phone → tablet → desktop. Use text-fluid-* for headings. */
+@theme {
+  --text-fluid-sm: clamp(0.875rem, 0.84rem + 0.15vw, 0.95rem);
+  --text-fluid-base: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  --text-fluid-lg: clamp(1.125rem, 1.05rem + 0.35vw, 1.3rem);
+  --text-fluid-xl: clamp(1.35rem, 1.2rem + 0.7vw, 1.75rem);
+  --text-fluid-2xl: clamp(1.7rem, 1.4rem + 1.4vw, 2.5rem);
+  --text-fluid-3xl: clamp(2.1rem, 1.6rem + 2.4vw, 3.5rem);
+
+  --breakpoint-xs: 380px; /* small phones */
+  /* sm 640 | md 768 (tablet portrait) | lg 1024 (tablet landscape) | xl 1280 */
+}
+
+/* -------------------------------------------------------------------------
+   App-feel fixes (these solve: scrollbars, size inconsistency, zoom jumps,
+   blue tap flashes, notch overlap, rubber-band bounce, horizontal overflow)
+   ------------------------------------------------------------------------- */
+@layer base {
+  *, *::before, *::after { border-color: var(--border); }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: clip;               /* never a horizontal scrollbar */
+    scroll-behavior: smooth;
+    color-scheme: light;
+    background: var(--background);
+  }
+  html.dark { color-scheme: dark; }
+
+  body {
+    min-height: 100dvh;              /* dvh, not vh: correct on mobile browsers */
+    overflow-x: clip;
+    overscroll-behavior-y: none;     /* no rubber-band bounce on the page */
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
+    font-size: var(--text-fluid-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 { font-family: var(--font-heading); line-height: 1.25; text-wrap: balance; }
+  p { text-wrap: pretty; }
+
+  img, svg, video, canvas { display: block; max-width: 100%; }
+  img { height: auto; }
+
+  /* Inputs at 16px → iOS never auto-zooms on focus (so we keep pinch-zoom allowed) */
+  input, select, textarea { font-size: max(16px, 1em); }
+  button, a, [role="button"] { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+  /* Scrollbars: hidden on touch devices, thin + themed on mouse devices */
+  @media (pointer: coarse) {
+    * { scrollbar-width: none; }
+    *::-webkit-scrollbar { display: none; }
+  }
+  @media (pointer: fine) {
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    *::-webkit-scrollbar { width: 8px; height: 8px; }
+    *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer utilities {
+  /* Safe-area (notch / home indicator) */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .ps-safe { padding-inline-start: env(safe-area-inset-right); }
+  .pe-safe { padding-inline-end: env(safe-area-inset-left); }
+  .h-screen-safe { height: 100dvh; }
+  .min-h-screen-safe { min-height: 100dvh; }
+
+  /* Horizontal scrollers (chips, carousels) — scroll without showing a bar */
+  .scroller { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .scroller::-webkit-scrollbar { display: none; }
+  .scroller > * { scroll-snap-align: start; flex-shrink: 0; }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+  .text-gradient { background: linear-gradient(120deg, var(--primary), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+}
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.animate-rise { animation: rise .35s cubic-bezier(.2,.9,.3,1) both; }

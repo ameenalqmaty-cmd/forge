@@ -1,0 +1,221 @@
+/* =========================================================================
+   FORGE — Theme presets
+   One component system, five personalities. Claude picks ONE per app
+   (see CLAUDE.md → "Choosing a theme"). Each preset defines light + dark.
+   To create a brand theme: copy a preset, change hues — keep contrast ≥ 4.5:1.
+   ========================================================================= */
+
+/* ---------- 1. calm — هادئ احترافي (business, productivity, admin, finance) ---------- */
+[data-theme="calm"] {
+  --font-body: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-heading: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.003 250);
+  --foreground: oklch(0.22 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 260);
+  --primary: oklch(0.52 0.17 258);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.01 255);
+  --secondary-foreground: oklch(0.3 0.03 260);
+  --muted: oklch(0.96 0.006 255);
+  --muted-foreground: oklch(0.5 0.02 260);
+  --accent: oklch(0.62 0.13 200);
+  --accent-foreground: oklch(0.99 0 0);
+  --success: oklch(0.6 0.14 155);
+  --warning: oklch(0.75 0.15 75);
+  --destructive: oklch(0.58 0.21 25);
+  --border: oklch(0.91 0.008 255);
+  --input: oklch(0.91 0.008 255);
+  --ring: oklch(0.52 0.17 258);
+  --card-shadow: 0 1px 2px oklch(0.2 0.02 260 / 0.04), 0 4px 16px oklch(0.2 0.02 260 / 0.05);
+}
+[data-theme="calm"].dark {
+  --background: oklch(0.17 0.015 260);
+  --foreground: oklch(0.95 0.005 255);
+  --card: oklch(0.215 0.018 260);
+  --card-foreground: oklch(0.95 0.005 255);
+  --primary: oklch(0.66 0.16 258);
+  --primary-foreground: oklch(0.15 0.02 260);
+  --secondary: oklch(0.26 0.02 260);
+  --secondary-foreground: oklch(0.92 0.01 255);
+  --muted: oklch(0.25 0.018 260);
+  --muted-foreground: oklch(0.7 0.015 258);
+  --accent: oklch(0.72 0.12 200);
+  --border: oklch(0.3 0.02 260);
+  --input: oklch(0.32 0.02 260);
+  --ring: oklch(0.66 0.16 258);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.3);
+}
+
+/* ---------- 2. playful — مرح ملوّن (social, friends, kids, lifestyle, food) ---------- */
+[data-theme="playful"] {
+  --font-body: "Readex Pro Variable", "Readex Pro", system-ui, sans-serif;
+  --font-heading: "Readex Pro Variable", "Readex Pro", system-ui, sans-serif;
+  --radius: 1.25rem;
+  --background: oklch(0.98 0.012 330);
+  --foreground: oklch(0.25 0.05 300);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.05 300);
+  --primary: oklch(0.6 0.24 345);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.04 300);
+  --secondary-foreground: oklch(0.35 0.12 300);
+  --muted: oklch(0.955 0.02 320);
+  --muted-foreground: oklch(0.52 0.05 310);
+  --accent: oklch(0.75 0.17 60);
+  --accent-foreground: oklch(0.25 0.06 50);
+  --success: oklch(0.68 0.17 150);
+  --warning: oklch(0.8 0.16 85);
+  --destructive: oklch(0.6 0.23 20);
+  --border: oklch(0.92 0.025 320);
+  --input: oklch(0.92 0.025 320);
+  --ring: oklch(0.6 0.24 345);
+  --card-shadow: 0 2px 0 oklch(0.6 0.24 345 / 0.08), 0 8px 24px oklch(0.6 0.24 345 / 0.08);
+}
+[data-theme="playful"].dark {
+  --background: oklch(0.18 0.04 300);
+  --foreground: oklch(0.96 0.01 320);
+  --card: oklch(0.23 0.05 300);
+  --card-foreground: oklch(0.96 0.01 320);
+  --primary: oklch(0.7 0.21 345);
+  --primary-foreground: oklch(0.16 0.04 300);
+  --secondary: oklch(0.28 0.06 300);
+  --secondary-foreground: oklch(0.92 0.03 320);
+  --muted: oklch(0.26 0.05 300);
+  --muted-foreground: oklch(0.74 0.04 310);
+  --border: oklch(0.32 0.06 300);
+  --input: oklch(0.34 0.06 300);
+  --ring: oklch(0.7 0.21 345);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.3);
+}
+
+/* ---------- 3. luxe — فاخر داكن (premium, booking, real estate, fashion, events) ---------- */
+[data-theme="luxe"] {
+  --font-body: "Tajawal", system-ui, sans-serif;
+  --font-heading: "El Messiri", "Tajawal", serif;
+  --radius: 0.5rem;
+  --background: oklch(0.975 0.008 85);
+  --foreground: oklch(0.2 0.01 70);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: oklch(0.2 0.01 70);
+  --primary: oklch(0.25 0.01 70);
+  --primary-foreground: oklch(0.88 0.09 85);
+  --secondary: oklch(0.94 0.015 85);
+  --secondary-foreground: oklch(0.3 0.02 70);
+  --muted: oklch(0.95 0.01 85);
+  --muted-foreground: oklch(0.5 0.02 75);
+  --accent: oklch(0.72 0.12 80);
+  --accent-foreground: oklch(0.2 0.02 70);
+  --success: oklch(0.58 0.11 155);
+  --warning: oklch(0.72 0.13 75);
+  --destructive: oklch(0.55 0.18 25);
+  --border: oklch(0.89 0.02 85);
+  --input: oklch(0.89 0.02 85);
+  --ring: oklch(0.72 0.12 80);
+  --card-shadow: 0 1px 0 oklch(0.72 0.12 80 / 0.15), 0 12px 32px oklch(0.2 0.01 70 / 0.06);
+}
+[data-theme="luxe"].dark {
+  --background: oklch(0.14 0.005 70);
+  --foreground: oklch(0.93 0.02 85);
+  --card: oklch(0.185 0.008 70);
+  --card-foreground: oklch(0.93 0.02 85);
+  --primary: oklch(0.8 0.11 82);
+  --primary-foreground: oklch(0.16 0.01 70);
+  --secondary: oklch(0.23 0.01 70);
+  --secondary-foreground: oklch(0.9 0.03 85);
+  --muted: oklch(0.21 0.008 70);
+  --muted-foreground: oklch(0.68 0.03 80);
+  --accent: oklch(0.8 0.11 82);
+  --accent-foreground: oklch(0.16 0.01 70);
+  --border: oklch(0.28 0.015 75);
+  --input: oklch(0.3 0.015 75);
+  --ring: oklch(0.8 0.11 82);
+  --card-shadow: 0 1px 0 oklch(0.8 0.11 82 / 0.08);
+}
+
+/* ---------- 4. edu — تعليمي دافئ (education, Quran, study, health, community) ---------- */
+[data-theme="edu"] {
+  --font-body: "Cairo Variable", "Cairo", system-ui, sans-serif;
+  --font-heading: "Cairo Variable", "Cairo", system-ui, sans-serif;
+  --radius: 1rem;
+  --background: oklch(0.982 0.01 150);
+  --foreground: oklch(0.24 0.03 170);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.03 170);
+  --primary: oklch(0.52 0.12 165);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.025 160);
+  --secondary-foreground: oklch(0.3 0.06 170);
+  --muted: oklch(0.96 0.015 150);
+  --muted-foreground: oklch(0.5 0.03 170);
+  --accent: oklch(0.76 0.14 70);
+  --accent-foreground: oklch(0.25 0.05 60);
+  --success: oklch(0.6 0.14 150);
+  --warning: oklch(0.78 0.15 75);
+  --destructive: oklch(0.58 0.2 25);
+  --border: oklch(0.91 0.02 155);
+  --input: oklch(0.91 0.02 155);
+  --ring: oklch(0.52 0.12 165);
+  --card-shadow: 0 1px 2px oklch(0.3 0.05 165 / 0.05), 0 6px 20px oklch(0.3 0.05 165 / 0.06);
+}
+[data-theme="edu"].dark {
+  --background: oklch(0.17 0.02 170);
+  --foreground: oklch(0.95 0.01 150);
+  --card: oklch(0.215 0.025 170);
+  --card-foreground: oklch(0.95 0.01 150);
+  --primary: oklch(0.7 0.13 165);
+  --primary-foreground: oklch(0.15 0.02 170);
+  --secondary: oklch(0.26 0.03 170);
+  --secondary-foreground: oklch(0.92 0.02 155);
+  --muted: oklch(0.25 0.025 170);
+  --muted-foreground: oklch(0.72 0.03 160);
+  --border: oklch(0.31 0.03 170);
+  --input: oklch(0.33 0.03 170);
+  --ring: oklch(0.7 0.13 165);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.3);
+}
+
+/* ---------- 5. game — ألعاب نيون (games, challenges, leaderboards, entertainment) ---------- */
+[data-theme="game"] {
+  --font-body: "Readex Pro Variable", "Readex Pro", system-ui, sans-serif;
+  --font-heading: "Readex Pro Variable", "Readex Pro", system-ui, sans-serif;
+  --radius: 0.875rem;
+  --background: oklch(0.97 0.01 280);
+  --foreground: oklch(0.2 0.04 280);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.04 280);
+  --primary: oklch(0.55 0.25 285);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.93 0.03 280);
+  --secondary-foreground: oklch(0.3 0.1 285);
+  --muted: oklch(0.94 0.02 280);
+  --muted-foreground: oklch(0.5 0.05 280);
+  --accent: oklch(0.82 0.18 190);
+  --accent-foreground: oklch(0.2 0.05 220);
+  --success: oklch(0.75 0.2 145);
+  --warning: oklch(0.82 0.17 85);
+  --destructive: oklch(0.62 0.24 20);
+  --border: oklch(0.89 0.03 280);
+  --input: oklch(0.89 0.03 280);
+  --ring: oklch(0.55 0.25 285);
+  --card-shadow: 0 4px 0 oklch(0.55 0.25 285 / 0.12);
+}
+[data-theme="game"].dark {
+  --background: oklch(0.13 0.03 280);
+  --foreground: oklch(0.96 0.01 280);
+  --card: oklch(0.18 0.045 282);
+  --card-foreground: oklch(0.96 0.01 280);
+  --primary: oklch(0.68 0.24 290);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.24 0.06 282);
+  --secondary-foreground: oklch(0.92 0.03 280);
+  --muted: oklch(0.21 0.05 282);
+  --muted-foreground: oklch(0.72 0.05 280);
+  --accent: oklch(0.85 0.17 190);
+  --accent-foreground: oklch(0.15 0.04 220);
+  --border: oklch(0.29 0.07 284);
+  --input: oklch(0.31 0.07 284);
+  --ring: oklch(0.85 0.17 190);
+  --card-shadow: 0 0 0 1px oklch(0.68 0.24 290 / 0.15), 0 8px 30px oklch(0.68 0.24 290 / 0.18);
+}

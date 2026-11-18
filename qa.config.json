@@ -1,0 +1,1 @@
+{ "routes": ["home", "components", "auth", "settings"], "themes": ["calm", "playful", "luxe", "edu", "game"] }
