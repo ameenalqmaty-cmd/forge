@@ -20,6 +20,8 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => { void cloud.presence(); }, []);
+
   useEffect(() => {
     if (state !== "checking") return;
     cloud.lock.info().then((i) => { setName(i.name); setState(i.locked ? "locked" : "open"); }).catch(() => setState("open"));

@@ -168,6 +168,20 @@ export const cloud = {
     };
   },
 
+  /**
+   * Called once on launch by LockGate (main.tsx). Makes sure this device has a session — a silent device
+   * account if nobody is signed in — and records the visit, so Studio → التشغيل shows users and activity
+   * for every app. Apps with email sign-in: treat `user.anonymous` as "not signed in yet".
+   */
+  async presence() {
+    if (!enabled) return;
+    try {
+      startAuth(); // an existing session is recorded (forge_touch) by startAuth
+      const { data } = await sb().auth.getSession();
+      if (!data.session) await sb().auth.signInAnonymously(); // SIGNED_IN → forge_touch
+    } catch { /* offline: try next launch */ }
+  },
+
   /** App lock (set in Studio → الخصوصية) */
   lock: {
     async info(): Promise<{ locked: boolean; name: string }> {

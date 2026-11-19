@@ -26,17 +26,17 @@ Never say "done" with failing QA or without having looked at the screenshots.
 ## 1. Stack — do not change
 
 - React + TypeScript + Vite, Tailwind v4, Radix primitives, lucide-react icons, motion for animation
-- **Forge Cloud** (`src/lib/cloud.ts`) when the app needs accounts or data saved across devices / shared between users — see §1b
+- **Forge Cloud** (`src/lib/cloud.ts`) for all user data — see §1b
 - Capacitor for Android APK
 - Hash routing or React Router; `base: "./"` must stay (works on Pages, artifacts and inside the APK)
 
 ## 1b. Data & accounts — Forge Cloud
 
 Every Forge app shares ONE backend (Forge Cloud, a Supabase project run by Forge Studio); each app's data is kept apart by its app id.
-- Use `cloud` / `useCollection` / `useCloudUser` from `src/lib/cloud.ts` for everything that must persist or be shared: accounts, lists, records, messages, scores. Collections are just names (`cloud.collection("students")`) — no tables, migrations or keys to create.
+- **Default: every piece of user data lives in Forge Cloud** — even in a single-person app (a to-do list, a diary): it survives a cleared browser or a new phone, and Ahmed sees it in Studio → التشغيل. Use `cloud` / `useCollection` / `useCloudUser` from `src/lib/cloud.ts` for accounts, lists, records, messages, scores. `localStorage` is only for UI preferences (theme, last tab, dismissed hints) and caches — never the only copy of user data. Do not tell the user data is "saved in the browser". Collections are just names (`cloud.collection("students")`) — no tables, migrations or keys to create.
 - Never create another Supabase project, table or client, and never put keys in the code. The factory injects the connection at build time; without it (local dev, QA) the same API works on-device only, so QA screenshots still have data.
 - Scopes: `private` (owner + app admins, default), `app` (every signed-in member), `public` (anyone). Pick per collection on purpose (a class roster for a teacher = private to the teacher; a shared leaderboard = public).
-- Writing needs a signed-in user. Simple personal/one-device apps: call `cloud.auth.signInAnon()` silently on start. Apps with several people (teacher/students, admin/customers): a real sign-in screen with `signUp`/`signIn` (email + password, Arabic errors are built in).
+- Writing needs a signed-in user. `LockGate` already signs every device in silently (a device account) and records the visit — simple personal apps need nothing more; wait for `useCloudUser().user` before the first write. Apps with several people (teacher/students, admin/customers): a real sign-in screen with `signUp`/`signIn` (email + password, Arabic errors are built in).
 - Roles: `user.role` is `owner` | `admin` | `user`. App admins are chosen by Ahmed in Studio (التشغيل → الأشخاص); admins can read and edit every row. Show admin-only screens to admins only.
 - Every list from the cloud has loading (`loading`), empty and error states; keep working offline with a clear message.
 - The app lock (`LockGate`, already in main.tsx) is controlled from Studio; do not remove it.
