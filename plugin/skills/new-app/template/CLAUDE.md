@@ -26,9 +26,20 @@ Never say "done" with failing QA or without having looked at the screenshots.
 ## 1. Stack — do not change
 
 - React + TypeScript + Vite, Tailwind v4, Radix primitives, lucide-react icons, motion for animation
-- Supabase (auth, DB, storage, realtime) when the app needs data
+- **Forge Cloud** (`src/lib/cloud.ts`) when the app needs accounts or data saved across devices / shared between users — see §1b
 - Capacitor for Android APK
 - Hash routing or React Router; `base: "./"` must stay (works on Pages, artifacts and inside the APK)
+
+## 1b. Data & accounts — Forge Cloud
+
+Every Forge app shares ONE backend (Forge Cloud, a Supabase project run by Forge Studio); each app's data is kept apart by its app id.
+- Use `cloud` / `useCollection` / `useCloudUser` from `src/lib/cloud.ts` for everything that must persist or be shared: accounts, lists, records, messages, scores. Collections are just names (`cloud.collection("students")`) — no tables, migrations or keys to create.
+- Never create another Supabase project, table or client, and never put keys in the code. The factory injects the connection at build time; without it (local dev, QA) the same API works on-device only, so QA screenshots still have data.
+- Scopes: `private` (owner + app admins, default), `app` (every signed-in member), `public` (anyone). Pick per collection on purpose (a class roster for a teacher = private to the teacher; a shared leaderboard = public).
+- Writing needs a signed-in user. Simple personal/one-device apps: call `cloud.auth.signInAnon()` silently on start. Apps with several people (teacher/students, admin/customers): a real sign-in screen with `signUp`/`signIn` (email + password, Arabic errors are built in).
+- Roles: `user.role` is `owner` | `admin` | `user`. App admins are chosen by Ahmed in Studio (التشغيل → الأشخاص); admins can read and edit every row. Show admin-only screens to admins only.
+- Every list from the cloud has loading (`loading`), empty and error states; keep working offline with a clear message.
+- The app lock (`LockGate`, already in main.tsx) is controlled from Studio; do not remove it.
 
 Do NOT add another UI library (MUI, Chakra, Bootstrap, Ant, DaisyUI…). Mixing libraries is the #1 cause of inconsistent sizes. If a component is missing, build it from Radix + tokens in `src/components/ui/`.
 
@@ -87,7 +98,7 @@ For a brand color: copy the closest preset in `src/styles/themes.css` and change
 - App icon from one SVG → all sizes, Android adaptive icon, **monochrome notification icon**, splash screen, favicon, PWA manifest, `theme-color`
 - App name (Arabic) + short name, `lang="ar" dir="rtl"`, page titles
 - Auth + roles if more than one kind of user is implied (e.g. teacher/student, admin/customer)
-- Supabase Row Level Security on every table; never expose service keys in the client
+- Data through Forge Cloud only (§1b); never expose keys in the client
 - Search/filter on any list > 15 items; pull-to-refresh feel; pagination or infinite scroll for long data
 - Notifications where the idea implies reminders/updates (permission asked at a meaningful moment, not on launch)
 - Offline-friendly basics: cache the shell, show a clear offline banner
