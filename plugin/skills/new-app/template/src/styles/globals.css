@@ -70,6 +70,7 @@
     background: var(--background);
   }
   html.dark { color-scheme: dark; }
+  html { overscroll-behavior-y: none; }  /* the browser's pull-to-refresh is replaced by the app's own (LockGate) */
 
   body {
     min-height: 100dvh;              /* dvh, not vh: correct on mobile browsers */

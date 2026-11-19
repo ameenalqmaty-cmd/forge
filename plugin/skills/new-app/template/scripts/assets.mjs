@@ -68,9 +68,25 @@ async function silhouette(input, size, pad = 0) {
   return sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: s, gravity: "center" }]).png().toBuffer();
 }
 
+/* ---------- launch: one brand color from the system splash to the first screen ---------- */
+// The splash (installed web app, APK) and the boot screen in index.html all use the same flat brand color with the
+// white mark in the middle, so opening the app is one continuous screen instead of icon-square → white flash → app.
+const BRAND = C.primary;
+const glyph = async (size) => silhouette(fg, size, 0.12);
+/** flat, full-bleed icon in the brand color (what Chrome puts on the splash: it blends into background_color) */
+async function flatIcon(size, scale = 0.5) {
+  if (customIcon) return png(customIcon, size).toBuffer();
+  const f = await glyph(Math.round(size * scale));
+  return sharp({ create: { width: size, height: size, channels: 4, background: BRAND } }).composite([{ input: f, gravity: "center" }]).png().toBuffer();
+}
+mkdirSync(".forge", { recursive: true });
+writeFileSync(".forge/brand.json", JSON.stringify({ splash: BRAND }, null, 2) + "\n");
+
 /* ---------- web / PWA ---------- */
 writeFileSync(out("public/icons/icon-192.png"), await fullIcon(192, { radius: 40 }));
-writeFileSync(out("public/icons/icon-512.png"), await fullIcon(512, { radius: 108 }));
+writeFileSync(out("public/icons/icon-512.png"), await flatIcon(512));
+const glyphPng = await glyph(256);
+writeFileSync(out("public/icons/splash-glyph.png"), glyphPng);
 writeFileSync(out("public/icons/maskable-512.png"), await fullIcon(512, { fgScale: 0.6 }));
 writeFileSync(out("public/icons/apple-touch-icon.png"), await fullIcon(180, { fgScale: 0.7 }));
 writeFileSync(out("public/icons/favicon-32.png"), await fullIcon(32, { radius: 7 }));
@@ -81,7 +97,7 @@ writeFileSync(out("public/favicon.svg"), customIcon ? customIcon : Buffer.from(
 writeFileSync(out("public/manifest.webmanifest"), JSON.stringify({
   name: cfg.name, short_name: cfg.shortName, description: cfg.description ?? "",
   lang: "ar", dir: "rtl", start_url: "./", scope: "./", display: "standalone", orientation: "any",
-  background_color: C.bg, theme_color: C.bg,
+  background_color: BRAND, theme_color: BRAND,
   icons: [
     { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
     { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
@@ -94,6 +110,15 @@ let html = readFileSync("index.html", "utf8");
 html = html.replace(/<title>.*?<\/title>/, `<title>${cfg.name}</title>`)
   .replace(/<meta name="theme-color" content="[^"]*"/, `<meta name="theme-color" content="${C.bg}"`)
   .replace(/data-theme="[^"]*"/, `data-theme="${cfg.theme}"`);
+// boot screen: shown by the browser before any JS, removed by LockGate when the first real screen is ready
+const boot = `<!-- forge-boot -->
+    <style>#forge-boot{position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:${BRAND};transition:opacity .35s ease}#forge-boot.out{opacity:0;pointer-events:none}#forge-boot img{width:88px;height:88px}#forge-boot .fail{display:none;position:absolute;inset:auto 0 max(48px,env(safe-area-inset-bottom));text-align:center;color:#fff;font:15px/1.7 system-ui,sans-serif}#forge-boot .fail button{margin-top:8px;min-height:44px;padding:0 20px;border-radius:999px;border:1px solid #ffffff66;background:transparent;color:#fff;font:inherit}@media (prefers-reduced-motion:reduce){#forge-boot{transition:none}}</style>
+    <div id="forge-boot" aria-hidden="true"><img alt="" src="data:image/png;base64,${glyphPng.toString("base64")}"><div class="fail">تعذّر فتح التطبيق<br><button onclick="location.reload()">أعد المحاولة</button></div></div>
+    <script>setTimeout(function(){var b=document.getElementById("forge-boot");if(b&&!b.classList.contains("out")){var f=b.querySelector(".fail");if(f)f.style.display="block"}},12000)</script>
+    <!-- /forge-boot -->`;
+html = /<!-- forge-boot -->[\s\S]*?<!-- \/forge-boot -->/.test(html)
+  ? html.replace(/<!-- forge-boot -->[\s\S]*?<!-- \/forge-boot -->/, boot)
+  : html.replace(/<body([^>]*)>/, `<body$1>\n    ${boot}`);
 writeFileSync("index.html", html);
 
 /* ---------- Android ---------- */
@@ -117,16 +142,32 @@ if (existsSync("android/app/src/main/res")) {
   const adaptive = `<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n  <background android:drawable="@color/ic_launcher_background"/>\n  <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n  <monochrome android:drawable="@mipmap/ic_launcher_monochrome"/>\n</adaptive-icon>\n`;
   writeFileSync(out(`${res}/mipmap-anydpi-v26/ic_launcher.xml`), adaptive);
   writeFileSync(out(`${res}/mipmap-anydpi-v26/ic_launcher_round.xml`), adaptive);
-  writeFileSync(out(`${res}/values/ic_launcher_background.xml`), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">${C.primary}</color>\n  <color name="notification_accent">${C.primary}</color>\n</resources>\n`);
+  writeFileSync(out(`${res}/values/ic_launcher_background.xml`), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">${C.primary}</color>\n  <color name="notification_accent">${C.primary}</color>\n  <color name="forge_brand">${BRAND}</color>\n</resources>\n`);
+  // Android 12+ system splash: brand background + the white mark (icon area = central 2/3 of a 288dp canvas)
+  for (const [d, k] of Object.entries(dens)) {
+    const size = Math.round(288 * k);
+    writeFileSync(out(`${res}/drawable-${d}/splash_icon.png`), await sharp({ create: { width: size, height: size, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: await glyph(Math.round(size * 0.42)), gravity: "center" }]).png().toBuffer());
+  }
+  const stylesPath = `${res}/values/styles.xml`;
+  if (existsSync(stylesPath)) {
+    let st = readFileSync(stylesPath, "utf8");
+    st = st.replace(/<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/, `<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/forge_brand</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>`);
+    if (!st.includes('android:windowBackground">@color/forge_brand')) st = st.replace(/(<style name="AppTheme\.NoActionBar" [^>]*>)/, `$1\n        <item name="android:windowBackground">@color/forge_brand</item>`);
+    writeFileSync(stylesPath, st);
+  }
   // splash (Capacitor SplashScreen uses @drawable/splash)
   // Capacitor ships default splash images in drawable-port-*/drawable-land-* that would override ours → overwrite every one
-  const logo = await fullIcon(560, { radius: 120 });
-  const splash = async (w, h, bg) => sharp({ create: { width: w, height: h, channels: 4, background: bg } }).composite([{ input: logo, gravity: "center" }]).png().toBuffer();
+  const logo = await glyph(520);
+  const splash = async (w, h) => sharp({ create: { width: w, height: h, channels: 4, background: BRAND } }).composite([{ input: logo, gravity: "center" }]).png().toBuffer();
   const dirs = new Set(["drawable", "drawable-night", ...readdirSync(res).filter((d) => existsSync(`${res}/${d}/splash.png`))]);
   for (const dir of dirs) {
-    const night = dir.includes("night");
     const [w, h] = dir.includes("land") ? [2732, 1536] : dir.includes("port") ? [1536, 2732] : [2732, 2732];
-    writeFileSync(out(`${res}/${dir}/splash.png`), await splash(w, h, night ? C.bgDark : C.bg));
+    writeFileSync(out(`${res}/${dir}/splash.png`), await splash(w, h));
   }
   androidDone = true;
 }

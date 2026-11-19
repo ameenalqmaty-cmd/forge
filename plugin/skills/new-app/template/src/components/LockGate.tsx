@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Lock, PauseCircle } from "lucide-react";
+import { Lock, PauseCircle, RefreshCw } from "lucide-react";
 import { cloud, type AppInfo } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
  * - App lock: visitors enter a code once per device.
  * - Pause: everyone sees the owner's message instead of the app (owner and app admins still get in).
  * Checks again every minute and when the app comes back to the foreground. Does nothing without Forge Cloud.
+ * Also owns the launch and the pull-to-refresh for every app:
+ * - fades out the brand boot screen (#forge-boot, from index.html) once the first real screen is ready;
+ * - replaces the browser's pull-to-refresh with one in the app's colors. Apps that can refresh in place listen to
+ *   `window.addEventListener("forge:refresh", (e) => { e.preventDefault(); reload data… })`; otherwise the page reloads.
  * Forge-managed file: do not edit (the factory refreshes it).
  */
 const KEY = `forge-unlocked-${cloud.appId}`;
@@ -30,6 +34,86 @@ function roleSoon(ms = 4000): Promise<string | null> {
   });
 }
 
+/** fade out the boot screen; while it is up the status bar matches it */
+function useBootScreen(ready: boolean) {
+  useEffect(() => {
+    const boot = document.getElementById("forge-boot");
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!boot) return;
+    if (!ready) {
+      const brand = getComputedStyle(boot).backgroundColor;
+      if (meta && brand) { meta.setAttribute("data-app", meta.getAttribute("content") ?? ""); meta.setAttribute("content", brand); }
+      return;
+    }
+    const t = requestAnimationFrame(() => {
+      boot.classList.add("out");
+      const app = meta?.getAttribute("data-app");
+      if (meta && app) meta.setAttribute("content", app);
+      setTimeout(() => boot.remove(), 400);
+    });
+    return () => cancelAnimationFrame(t);
+  }, [ready]);
+}
+
+const PULL = 72; // px to trigger
+function PullToRefresh({ children }: { children: ReactNode }) {
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const start = useRef<number | null>(null);
+  const pulled = useRef(0);
+  useEffect(() => {
+    document.documentElement.style.overscrollBehaviorY = "none"; // no browser pull-to-refresh / bounce
+    const atTop = () => (document.scrollingElement?.scrollTop ?? window.scrollY) <= 0;
+    const insideScroller = (t: EventTarget | null) => {
+      for (let el = t as HTMLElement | null; el && el !== document.body; el = el.parentElement) {
+        if (el.scrollTop > 0) return true; // a scrolled inner list: let it scroll back first
+        if (el.closest?.('[role="dialog"], [data-no-pull]')) return true;
+      }
+      return false;
+    };
+    const down = (e: TouchEvent) => { start.current = !busy && e.touches.length === 1 && atTop() && !insideScroller(e.target) ? e.touches[0].clientY : null; };
+    const move = (e: TouchEvent) => {
+      if (start.current === null) return;
+      const dy = e.touches[0].clientY - start.current;
+      pulled.current = dy <= 0 || !atTop() ? 0 : Math.min(PULL * 1.6, dy * 0.5);
+      setPull(pulled.current);
+    };
+    const up = () => {
+      if (start.current === null) return;
+      start.current = null;
+      const p = pulled.current;
+      pulled.current = 0;
+      setPull(0);
+      if (p < PULL) return;
+      setBusy(true);
+      const ev = new CustomEvent("forge:refresh", { cancelable: true });
+      window.dispatchEvent(ev);
+      if (!ev.defaultPrevented) setTimeout(() => location.reload(), 250);
+      else setTimeout(() => setBusy(false), 900);
+    };
+    addEventListener("touchstart", down, { passive: true });
+    addEventListener("touchmove", move, { passive: true });
+    addEventListener("touchend", up);
+    addEventListener("touchcancel", up);
+    return () => { removeEventListener("touchstart", down); removeEventListener("touchmove", move); removeEventListener("touchend", up); removeEventListener("touchcancel", up); };
+  }, [busy]);
+
+  const shown = busy || pull > 4;
+  const progress = Math.min(1, pull / PULL);
+  return (
+    <>
+      <div aria-hidden={!busy} role={busy ? "status" : undefined} aria-label={busy ? "يحدّث" : undefined}
+        className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center"
+        style={{ transform: `translateY(${busy ? 56 : Math.max(0, pull - 8)}px)`, opacity: shown ? 1 : 0, transition: start.current === null ? "transform .25s ease, opacity .2s" : "none", paddingTop: "env(safe-area-inset-top)" }}>
+        <span className="-mt-11 grid size-11 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background">
+          <RefreshCw className={busy ? "size-5 animate-spin" : "size-5"} style={busy ? undefined : { transform: `rotate(${progress * 300}deg)`, opacity: 0.4 + progress * 0.6 }} />
+        </span>
+      </div>
+      {children}
+    </>
+  );
+}
+
 export function LockGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => (!cloud.enabled ? "open" : isUnlocked() ? "open" : "checking"));
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -40,6 +124,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   const alive = useRef(true);
 
   useEffect(() => { void cloud.presence(); return () => { alive.current = false; }; }, []);
+  useBootScreen(state !== "checking");
 
   const check = useCallback(async () => {
     if (!cloud.enabled) return;
@@ -81,7 +166,7 @@ export function LockGate({ children }: { children: ReactNode }) {
             التطبيق متوقف للزوار. أنت تراه لأنك مشرف.
           </div>
         )}
-        {children}
+        <PullToRefresh>{children}</PullToRefresh>
       </>
     );
   }
