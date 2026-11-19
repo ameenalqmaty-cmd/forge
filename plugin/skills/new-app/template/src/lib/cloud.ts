@@ -84,6 +84,61 @@ function arabicError(m: string) {
 
 const enabled = !!(URL_ && KEY);
 
+// ---------------------------------------------------------------- activity (Studio → التشغيل → الإحصاءات)
+// Sessions, screens and errors are recorded automatically once presence() runs; apps add key actions with cloud.track().
+type Ev = { kind: "session" | "screen" | "event" | "error"; name: string; data: Record<string, unknown>; at: string };
+const queue: Ev[] = [];
+let flushing = false;
+let errorCount = 0;
+let lastScreen = "";
+const clip = (v: string, n: number) => (v.length > n ? v.slice(0, n) : v);
+function push(kind: Ev["kind"], name: string, data: Record<string, unknown> = {}) {
+  if (!enabled || !name) return;
+  queue.push({ kind, name: clip(String(name), 150), data, at: new Date().toISOString() });
+  if (queue.length > 200) queue.splice(0, queue.length - 200);
+}
+async function flush() {
+  if (!enabled || flushing || !queue.length) return;
+  flushing = true;
+  try {
+    const { data } = await sb().auth.getSession();
+    if (!data.session) return; // not signed in yet: keep the queue
+    const batch = queue.splice(0, 50);
+    const { error } = await sb().from("forge_events").insert(batch.map((e) => ({ app_id: APP, ...e })));
+    if (error) queue.unshift(...batch.filter((e) => Date.now() - Date.parse(e.at) < 20 * 3600e3));
+  } catch { /* offline: next tick */ } finally { flushing = false; }
+}
+/** "#student/8f3a…?tab=1" → "student/:id" so the same screen is counted together */
+function screenOf(hash: string) {
+  const path = hash.replace(/^#\/?/, "").split("?")[0] || "home";
+  return path.split("/").map((seg) => (/^[0-9a-f-]{8,}$/i.test(seg) || /^\d+$/.test(seg) || seg.length > 24 ? ":id" : seg)).join("/");
+}
+function recordScreen() {
+  const s = screenOf(location.hash);
+  if (s !== lastScreen) { lastScreen = s; push("screen", s); }
+}
+let tracking = false;
+function startTracking() {
+  if (tracking || !enabled || typeof window === "undefined") return;
+  tracking = true;
+  const native = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+  const pwa = matchMedia?.("(display-mode: standalone)").matches;
+  push("session", "open", { platform: native ? "apk" : pwa ? "pwa" : "web", w: innerWidth, h: innerHeight, lang: navigator.language });
+  recordScreen();
+  addEventListener("hashchange", recordScreen);
+  addEventListener("error", (e) => {
+    if (++errorCount > 20) return;
+    push("error", (e as ErrorEvent).message || "خطأ غير معروف", { stack: clip(String((e as ErrorEvent).error?.stack ?? ""), 1500), screen: lastScreen, src: (e as ErrorEvent).filename ?? "" });
+  });
+  addEventListener("unhandledrejection", (e) => {
+    if (++errorCount > 20) return;
+    const r = (e as PromiseRejectionEvent).reason;
+    push("error", r instanceof Error ? r.message : clip(String(r ?? "Promise rejected"), 150), { stack: clip(String(r?.stack ?? ""), 1500), screen: lastScreen });
+  });
+  setInterval(() => void flush(), 5000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") void flush(); });
+}
+
 export const cloud = {
   /** true when the app is connected to Forge Cloud (otherwise data stays on this device) */
   enabled,
@@ -175,12 +230,22 @@ export const cloud = {
    */
   async presence() {
     if (!enabled) return;
+    startTracking();
     try {
       startAuth(); // an existing session is recorded (forge_touch) by startAuth
       const { data } = await sb().auth.getSession();
       if (!data.session) await sb().auth.signInAnonymously(); // SIGNED_IN → forge_touch
+      void flush();
     } catch { /* offline: try next launch */ }
   },
+
+  /**
+   * Record a meaningful action for Studio's stats and the person's timeline: cloud.track("message_sent", { room: "family" }).
+   * Name it in snake_case and give it an Arabic label in .forge/data.json → "events". Not for every click.
+   */
+  track(name: string, data: Record<string, unknown> = {}) { push("event", name, data); },
+  /** for apps that don't use hash routes: report the current screen yourself */
+  screen(name: string) { if (name !== lastScreen) { lastScreen = name; push("screen", name); } },
 
   /** App lock (set in Studio → الخصوصية) */
   lock: {

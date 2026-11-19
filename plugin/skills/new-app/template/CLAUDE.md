@@ -40,9 +40,10 @@ Every Forge app shares ONE backend (Forge Cloud, a Supabase project run by Forge
 - Roles: `user.role` is `owner` | `admin` | `user`. App admins are chosen by Ahmed in Studio (التشغيل → الأشخاص); admins can read and edit every row. Show admin-only screens to admins only.
 - Every list from the cloud has loading (`loading`), empty and error states; keep working offline with a clear message.
 - The app lock (`LockGate`, already in main.tsx) is controlled from Studio; do not remove it.
+- Activity is recorded automatically (each visit, every hash-route screen, uncaught errors), tied to the person. Add `cloud.track("snake_name", {…})` for the few actions that show how the app is really used (task_done, message_sent, quiz_finished, order_placed) — not every tap. Never put passwords or private message text in `track` data.
 - Describe your data for Studio in `.forge/data.json` (Ahmed reads it in «التشغيل → البيانات»); update it whenever collections or fields change:
-  `{ "collections": { "tasks": { "label": "المهام", "title": "title", "fields": { "title": "العنوان", "done": "منجزة", "due": "الموعد" }, "values": { "priority": { "high": "عاجلة" } }, "hidden": ["order"] } } }`
-  `label` = Arabic collection name · `title` = the field that names a row · `fields` = Arabic label for every field · `values` = Arabic for coded values · `hidden` = internal fields. Store dates as ISO strings (`2026-11-19` or full ISO), not raw numbers.
+  `{ "screens": { "home": "الرئيسية", "task/:id": "تفاصيل مهمة" }, "events": { "task_done": "أنجز مهمة" }, "collections": { "tasks": { "label": "المهام", "title": "title", "fields": { "title": "العنوان", "done": "منجزة", "due": "الموعد" }, "values": { "priority": { "high": "عاجلة" } }, "hidden": ["order"] } } }`
+  `screens` = Arabic name of every hash route (ids become `:id`) · `events` = Arabic name of every `cloud.track` action · `label` = Arabic collection name · `title` = the field that names a row · `fields` = Arabic label for every field · `values` = Arabic for coded values · `hidden` = internal fields. Store dates as ISO strings (`2026-11-19` or full ISO), not raw numbers.
 
 Do NOT add another UI library (MUI, Chakra, Bootstrap, Ant, DaisyUI…). Mixing libraries is the #1 cause of inconsistent sizes. If a component is missing, build it from Radix + tokens in `src/components/ui/`.
 
