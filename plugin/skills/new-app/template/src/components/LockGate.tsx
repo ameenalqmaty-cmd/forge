@@ -14,6 +14,10 @@ import { Input } from "@/components/ui/input";
 const KEY = `forge-unlocked-${cloud.appId}`;
 type State = "checking" | "open" | "locked" | "paused";
 
+const INFO_KEY = `forge-info-${cloud.appId}`;
+/** last known state, so a paused app stays paused when the phone is offline (APK) */
+const cachedInfo = (): AppInfo | null => { try { return JSON.parse(localStorage.getItem(INFO_KEY) || "null"); } catch { return null; } };
+const cacheInfo = (i: AppInfo) => { try { localStorage.setItem(INFO_KEY, JSON.stringify(i)); } catch { /* */ } };
 const isUnlocked = () => { try { return localStorage.getItem(KEY) === "1"; } catch { return false; } };
 
 /** waits briefly for the signed-in user (device account or email) to know their role */
@@ -40,7 +44,12 @@ export function LockGate({ children }: { children: ReactNode }) {
   const check = useCallback(async () => {
     if (!cloud.enabled) return;
     let i: AppInfo;
-    try { i = await cloud.lock.info(); } catch { setState((s) => (s === "checking" ? "open" : s)); return; }
+    try { i = await cloud.lock.info(); cacheInfo(i); }
+    catch {
+      const c = cachedInfo(); // offline: trust the last answer
+      if (!c) { setState((s) => (s === "checking" ? "open" : s)); return; }
+      i = c;
+    }
     if (!alive.current) return;
     setInfo(i);
     if (i.paused) {

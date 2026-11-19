@@ -57,5 +57,12 @@ jobs:
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "::warning::No Cloudflare secrets — deploy skipped"; exit 0; fi
           PROJECT=$(jq -r '.cloudflareProject' forge.config.json)
+          if [ -f .forge/cloud.json ]; then
+            # rebuild connected to Forge Cloud (QA above built it disconnected), and never unpause the web by accident
+            export VITE_FORGE_CLOUD_URL="$(jq -r '.url // empty' .forge/cloud.json)" VITE_FORGE_CLOUD_KEY="$(jq -r '.key // empty' .forge/cloud.json)" VITE_FORGE_APP_ID="$(jq -r '.app // empty' .forge/cloud.json)"
+            PAUSED=$(curl -fsS -X POST "$VITE_FORGE_CLOUD_URL/rest/v1/rpc/forge_app_info" -H "apikey: $VITE_FORGE_CLOUD_KEY" -H "Content-Type: application/json" -d "{\"a\":\"$VITE_FORGE_APP_ID\"}" | jq -r '.paused // false' || echo false)
+            if [ "$PAUSED" = "true" ]; then echo "::warning::App is paused in Forge Studio — web deploy skipped"; exit 0; fi
+            npm run build
+          fi
           npx wrangler@4 pages project create "$PROJECT" --production-branch=main 2>/dev/null || true
           npx wrangler@4 pages deploy dist --project-name="$PROJECT" --branch="${GITHUB_REF_NAME}" --commit-hash="$GITHUB_SHA" --commit-message="$(git log -1 --pretty=%s | head -c 200)"

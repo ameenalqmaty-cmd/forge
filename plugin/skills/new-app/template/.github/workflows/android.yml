@@ -37,8 +37,16 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build web app
-        run: npm run build
+      - name: Build web app (connected to Forge Cloud — data, stats, pause, lock)
+        run: |
+          if [ -f .forge/cloud.json ]; then
+            export VITE_FORGE_CLOUD_URL="$(jq -r '.url // empty' .forge/cloud.json)"
+            export VITE_FORGE_CLOUD_KEY="$(jq -r '.key // empty' .forge/cloud.json)"
+            export VITE_FORGE_APP_ID="$(jq -r '.app // empty' .forge/cloud.json)"
+          else
+            echo "::warning::No .forge/cloud.json — this APK works on the device only (no Forge Cloud, cannot be paused from Studio)"
+          fi
+          npm run build
 
       - name: Prepare Android project
         run: |
