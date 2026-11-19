@@ -24,6 +24,7 @@ const KEY = import.meta.env.VITE_FORGE_CLOUD_KEY as string | undefined;
 const APP = (import.meta.env.VITE_FORGE_APP_ID as string | undefined) ?? "local";
 
 export type Scope = "private" | "app" | "public";
+export type AppInfo = { locked: boolean; name: string; paused: boolean; message: string | null };
 export type Row<T> = { id: string; data: T; owner: string | null; scope: Scope; createdAt: string; updatedAt: string };
 export type Role = "owner" | "admin" | "user";
 export type CloudUser = { id: string; email: string | null; name: string | null; anonymous: boolean; role: Role };
@@ -72,6 +73,30 @@ function startAuth() {
     if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void toCloudUser(session?.user).then(setUser);
   });
 }
+/** Inside Studio's preview (iframe / ?forge_preview=1) the device account is labelled so Ahmed can tell it apart. */
+const inPreview = typeof window !== "undefined" && (new URLSearchParams(location.search).has("forge_preview") || (() => { try { return window.top !== window; } catch { return true; } })());
+
+/**
+ * One device account per browser, however many places ask at once (LockGate, app code, several tabs):
+ * concurrent calls share one promise, and a cross-tab lock makes the second tab reuse the first tab's session.
+ */
+let anonFlight: Promise<void> | null = null;
+async function ensureSession() {
+  const { data } = await sb().auth.getSession();
+  if (data.session) return;
+  anonFlight ??= (async () => {
+    const run = async () => {
+      const again = await sb().auth.getSession();
+      if (again.data.session) return;
+      const { error } = await sb().auth.signInAnonymously(inPreview ? { options: { data: { name: "معاينة Studio" } } } : undefined);
+      err(error);
+    };
+    if (typeof navigator !== "undefined" && navigator.locks?.request) await navigator.locks.request(`forge-anon-${APP}`, run);
+    else await run();
+  })().finally(() => { anonFlight = null; });
+  await anonFlight;
+}
+
 const err = (e: { message?: string } | null) => { if (e) throw new Error(arabicError(e.message ?? "")); };
 function arabicError(m: string) {
   if (/Invalid login credentials/i.test(m)) return "البريد أو كلمة المرور غير صحيحة";
@@ -157,7 +182,15 @@ export const cloud = {
     /** a device account without email (if allowed by the project); good default for simple apps */
     async signInAnon() {
       if (!enabled) return localSignIn(null);
-      const { error } = await sb().auth.signInAnonymously(); err(error);
+      await ensureSession(); // never creates a second account on the same device
+    },
+    /**
+     * Turn this device account into a real account (email + password) WITHOUT losing anything: same person, same data.
+     * Then the person signs in with that email on another phone and is recognised as the same person.
+     */
+    async saveAccount(email: string, password: string, name?: string) {
+      if (!enabled) return localSignIn(email, name);
+      const { error } = await sb().auth.updateUser({ email, password, ...(name ? { data: { name } } : {}) }); err(error);
     },
     async signOut() {
       if (!enabled) { try { localStorage.removeItem(`${LK}-user`); } catch { /* */ } setUser(null); return; }
@@ -233,8 +266,7 @@ export const cloud = {
     startTracking();
     try {
       startAuth(); // an existing session is recorded (forge_touch) by startAuth
-      const { data } = await sb().auth.getSession();
-      if (!data.session) await sb().auth.signInAnonymously(); // SIGNED_IN → forge_touch
+      await ensureSession(); // SIGNED_IN → forge_touch
       void flush();
     } catch { /* offline: try next launch */ }
   },
@@ -249,10 +281,11 @@ export const cloud = {
 
   /** App lock (set in Studio → الخصوصية) */
   lock: {
-    async info(): Promise<{ locked: boolean; name: string }> {
-      if (!enabled) return { locked: false, name: "" };
+    /** lock code + pause state (both set in Studio → التشغيل → الخصوصية) */
+    async info(): Promise<AppInfo> {
+      if (!enabled) return { locked: false, name: "", paused: false, message: null };
       const { data } = await sb().rpc("forge_app_info", { a: APP });
-      return (data as { locked: boolean; name: string }) ?? { locked: false, name: "" };
+      return { locked: false, name: "", paused: false, message: null, ...((data as Partial<AppInfo>) ?? {}) };
     },
     async check(code: string): Promise<boolean> {
       if (!enabled) return true;
