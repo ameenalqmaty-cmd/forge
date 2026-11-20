@@ -305,6 +305,7 @@ export function LockGate({ children }: { children: ReactNode }) {
         <PullToRefresh>{children}</PullToRefresh>
         {cloud.enabled && <MessageBanner />}
         <UpdateLayer />
+        {import.meta.env.VITE_FORGE_STAGE === "test" && <TestBadge />}
       </>
     );
   }
@@ -341,6 +342,15 @@ export function LockGate({ children }: { children: ReactNode }) {
         {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
         <Button className="mt-4 w-full" size="lg" disabled={busy || !code.trim()}>{busy ? "يتحقق…" : "دخول"}</Button>
       </form>
+    </div>
+  );
+}
+
+/** the test copy Ahmed checks before «انشر التحديث»: same code, its own data — never confused with the real app */
+function TestBadge() {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center pt-safe" aria-live="polite">
+      <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-foreground/90 px-3 py-0.5 text-xs font-bold text-background shadow-sm"><span className="size-2 rounded-full bg-warning" />نسخة تجريبية · بيانات منفصلة</span>
     </div>
   );
 }
