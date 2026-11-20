@@ -353,10 +353,17 @@ export function LockGate({ children, overlay = false }: { children: ReactNode; o
 }
 
 /** the test copy Ahmed checks before «انشر التحديث»: same code, its own data — never confused with the real app */
+/** Test copy marker. Inside Studio's preview Studio itself says «نسخة تجريبية», so nothing is drawn over the app there.
+ *  Opened directly: a small corner tag that never covers the app's header (tap it for the full text). */
 function TestBadge() {
+  const inStudio = (() => { try { return new URLSearchParams(location.search).has("forge_preview") || window.top !== window; } catch { return true; } })();
+  const [open, setOpen] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setOpen(false), 3500); return () => clearTimeout(t); }, []);
+  if (inStudio) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center pt-safe" aria-live="polite">
-      <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-foreground/90 px-3 py-0.5 text-xs font-bold text-background shadow-sm"><span className="size-2 rounded-full bg-warning" />نسخة تجريبية · بيانات منفصلة</span>
-    </div>
+    <button type="button" onClick={() => setOpen((o) => !o)} aria-label="نسخة تجريبية ببيانات منفصلة"
+      className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] start-2 z-[60] inline-flex min-h-8 items-center gap-1.5 rounded-full bg-foreground/85 px-2.5 text-xs font-bold text-background shadow-md">
+      <span className="size-2 shrink-0 rounded-full bg-warning" />{open && <span>نسخة تجريبية · بيانات منفصلة</span>}
+    </button>
   );
 }
