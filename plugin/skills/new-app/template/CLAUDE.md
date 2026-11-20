@@ -131,6 +131,13 @@ List everything you added on your own in the final report so the user can remove
 - [ ] Deployed: web link works; APK built (when mobile)
 - [ ] Final report lists the link, the APK, and everything added proactively
 
+## 6b. Working on this app outside Studio (Claude Code on a computer)
+
+This repo IS the app Studio manages. Clone it, edit, `npm run typecheck && npm run qa`, then commit and push to `main`. That is all:
+- Do NOT deploy anything yourself (no wrangler, no Cloudflare/Pages tokens, no APK upload) and do not add workflows that deploy. Studio sees the new commits and offers «جرّبها» (test copy), then Ahmed presses «انشر التحديث».
+- Do not edit Forge-managed files (src/lib/cloud.ts, LockGate, updates.ts, forge-shell.tsx, scripts/assets.mjs, scripts/forge-native.mjs, .github/workflows/*, capacitor.config.ts) — the factory rewrites them.
+- Never write keys or passwords into the repo.
+
 ## 7. QA notes
 
 - `qa.config.json` → `{ "routes": ["home", "…"] }` — add every route/screen you create.
