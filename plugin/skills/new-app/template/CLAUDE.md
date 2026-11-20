@@ -48,6 +48,24 @@ Every Forge app shares ONE backend (Forge Cloud, a Supabase project run by Forge
 - Messages: important notices from Ahmed (Studio) and the app's admins already appear in every app as a top card (LockGate). If the idea has a natural place for them (a bell, «الإشعارات», a news tab), build it with `useMessages()` (`messages`, `unread`, `markRead`) and set `document.documentElement.dataset.forgeBanner = "off"` so they aren't shown twice. Apps with admins may give them a «أرسل تنبيهاً» screen with `cloud.messages.send({ title, body, important, to: "all" | "admins" | { user }, at, repeat })`. Messages between ordinary users (chat, teacher→students) are the app's own feature built on collections, not this.
 - Phone notifications for those messages: LockGate offers them right after the person taps «تم» on a message. Where the app has settings, add a «تنبيهات الهاتف» switch with `usePush()` (`state`: unsupported/default/denied/on, `enable`, `disable`); hide it when `unsupported`. Never ask on launch.
 - Activity is recorded automatically (each visit, every hash-route screen, uncaught errors), tied to the person. Add `cloud.track("snake_name", {…})` for the few actions that show how the app is really used (task_done, message_sent, quiz_finished, order_placed) — not every tap. Never put passwords or private message text in `track` data.
+- **App panel** (`.forge/panel.json`, shown in Studio → التشغيل → اللوحة) — when Ahmed asks for settings he can change without a new build, keys for outside services (AI, maps, SMS…), codes to generate, or anything "for me to control the app". Never build a separate control app or an in-app screen holding keys. The factory registers the file on every deploy.
+  ```json
+  { "title": "لوحة المساعد الدراسي",
+    "sections": [
+      { "title": "الذكاء الاصطناعي", "items": [
+        { "type": "secret", "key": "anthropic_key", "label": "مفتاح Claude API", "help": "من console.anthropic.com" },
+        { "type": "number", "key": "daily_limit", "label": "أسئلة الطالب في اليوم", "min": 0, "default": 20 },
+        { "type": "switch", "key": "ai_enabled", "label": "تفعيل المساعد", "default": true },
+        { "type": "select", "key": "level", "label": "المستوى", "options": [{ "value": "easy", "label": "سهل" }], "default": "easy" },
+        { "type": "text", "key": "welcome", "label": "رسالة الترحيب", "multiline": true, "default": "أهلاً" } ] },
+      { "title": "أكواد الاشتراك", "items": [
+        { "type": "generate", "label": "ولّد أكواد", "collection": "codes", "count": 20, "scope": "app",
+          "code": { "field": "code", "length": 8, "prefix": "" }, "fields": { "used": false, "plan": "month" },
+          "choose": { "field": "plan", "label": "المدة", "options": [{ "value": "month", "label": "شهر" }, { "value": "year", "label": "سنة" }] } },
+        { "type": "list", "collection": "codes", "title": "الأكواد", "columns": [{ "field": "code", "label": "الكود" }, { "field": "used", "label": "مُستخدم" }], "delete": true, "export": true } ] } ],
+    "services": { "ai": { "kind": "anthropic", "secret": "anthropic_key", "perUserDay": { "config": "daily_limit" }, "models": ["claude-haiku-4-5"], "maxTokens": 1500 } } }
+  ```
+  Item types: `text` · `number` · `switch` · `select` · `secret` · `generate` (random unique codes into a collection) · `list` (rows of a collection: search, delete, CSV). Keys: lowercase snake_case. Read settings with `useConfig({ daily_limit: 20 })` / `cloud.config()` (also `window.forge.cloud` in imported apps); they change live, no rebuild. **Secrets never reach the app**: use a service — `await cloud.ask("ai", "…")` or `cloud.ask("ai", { system, messages })` returns the reply text (same code for `anthropic` / `openai` / `gemini`); `cloud.call("svc", { path, method, body })` for `kind: "http"` services (`base` = fixed https URL, `header`+`format` like `"Bearer {secret}"`, or `query` for a key in the URL). Handle `e.code`: `"no_key"` → «لم يُضبط المفتاح بعد», `"limit"` → the daily limit message, `"offline"`. Never put an API key in code, config or a collection.
 - Describe your data for Studio in `.forge/data.json` (Ahmed reads it in «التشغيل → البيانات»); update it whenever collections or fields change:
   `{ "screens": { "home": "الرئيسية", "task/:id": "تفاصيل مهمة" }, "events": { "task_done": "أنجز مهمة" }, "collections": { "tasks": { "label": "المهام", "title": "title", "fields": { "title": "العنوان", "done": "منجزة", "due": "الموعد" }, "values": { "priority": { "high": "عاجلة" } }, "hidden": ["order"] } } }`
   `screens` = Arabic name of every hash route (ids become `:id`) · `events` = Arabic name of every `cloud.track` action · `label` = Arabic collection name · `title` = the field that names a row · `fields` = Arabic label for every field · `values` = Arabic for coded values · `hidden` = internal fields. Store dates as ISO strings (`2026-11-19` or full ISO), not raw numbers.

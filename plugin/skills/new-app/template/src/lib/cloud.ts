@@ -329,6 +329,62 @@ export const cloud = {
    * Name it in snake_case and give it an Arabic label in .forge/data.json → "events". Not for every click.
    */
   track(name: string, data: Record<string, unknown> = {}) { push("event", name, data); },
+
+  /**
+   * The app's settings from its panel (Studio → التشغيل → اللوحة): defaults from .forge/panel.json, changed by Ahmed
+   * any time without a new build. Not for secrets (those never reach the app — use cloud.ask / cloud.call).
+   */
+  async config<T extends Record<string, unknown> = Record<string, unknown>>(): Promise<T> {
+    if (!enabled) return {} as T;
+    const CK = `forge-config-${APP}`;
+    try {
+      await ensureSession();
+      const { data, error } = await sb().rpc("forge_config", { a: APP });
+      err(error);
+      try { localStorage.setItem(CK, JSON.stringify(data ?? {})); } catch { /* */ }
+      return (data ?? {}) as T;
+    } catch (e) {
+      try { const c = localStorage.getItem(CK); if (c) return JSON.parse(c) as T; } catch { /* */ }
+      throw e;
+    }
+  },
+
+  /**
+   * Use a service declared in the panel ("services") — its key stays on the server. Raw form: the provider's own
+   * request body (Anthropic messages / OpenAI chat / Gemini generateContent), or { path, method, body } for "http".
+   * Errors come back in Arabic (no key yet, daily limit reached, offline…) with e.code = "no_key" | "limit" | ….
+   */
+  async call<T = unknown>(service: string, req: { body?: unknown; path?: string; method?: string; model?: string } = {}): Promise<T> {
+    if (!enabled) throw Object.assign(new Error("هذه الميزة تعمل في التطبيق المنشور فقط"), { code: "offline" });
+    await ensureSession();
+    const { data } = await sb().auth.getSession();
+    let r: Response;
+    try {
+      r = await fetch(`${URL_}/functions/v1/forge-call`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: KEY!, Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+        body: JSON.stringify({ app: APP, service, ...req }),
+      });
+    } catch { throw Object.assign(new Error("لا يوجد اتصال بالإنترنت"), { code: "offline" }); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const m = (j as { error?: string | { message?: string }; code?: string });
+      const msg = typeof m.error === "string" ? m.error : m.error?.message ? `الخدمة ردّت: ${m.error.message}` : "تعذّر الاتصال بالخدمة";
+      throw Object.assign(new Error(msg), { code: m.code ?? String(r.status) });
+    }
+    return j as T;
+  },
+
+  /**
+   * The easy way to use an AI service from the panel: cloud.ask("ai", "اشرح …") or
+   * cloud.ask("ai", { system, messages: [{ role: "user", content: "…" }], maxTokens, model }) → the reply text.
+   * Works the same whether Ahmed set it up with Claude, OpenAI or Gemini.
+   */
+  async ask(service: string, q: string | { system?: string; messages: { role: "user" | "assistant"; content: string }[]; maxTokens?: number; model?: string }): Promise<string> {
+    const x = typeof q === "string" ? { messages: [{ role: "user" as const, content: q }] } : q;
+    const r = await cloud.call<{ text?: string }>(service, { body: { ask: true, ...x } });
+    return r.text ?? "";
+  },
   /** for apps that don't use hash routes: report the current screen yourself */
   screen(name: string) { if (name !== lastScreen) { lastScreen = name; push("screen", name); } },
 
@@ -477,6 +533,22 @@ export function useCollection<T = Record<string, unknown>>(name: string, opts: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, key]);
   return { rows: rows ?? [], loading: rows === null && !error, error, reload: () => cloud.collection<T>(name).list(opts).then(setRows) };
+}
+
+/** the app's panel settings (see cloud.config): { config, loading, error, reload } — refreshed when the app comes back */
+export function useConfig<T extends Record<string, unknown> = Record<string, unknown>>(defaults: Partial<T> = {}) {
+  const [config, setConfig] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    try { setError(null); setConfig(await cloud.config<T>()); } catch (e) { setError(e instanceof Error ? e.message : "تعذّر التحميل"); setConfig((c) => c ?? ({} as T)); }
+  }, []);
+  useEffect(() => {
+    void reload();
+    const vis = () => { if (document.visibilityState === "visible") void reload(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => document.removeEventListener("visibilitychange", vis);
+  }, [reload]);
+  return { config: { ...defaults, ...(config ?? {}) } as T, loading: config === null, error, reload };
 }
 
 /** phone-notification state for a settings switch: { state, enable, disable } */
