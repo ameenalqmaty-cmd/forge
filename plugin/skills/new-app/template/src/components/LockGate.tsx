@@ -5,6 +5,7 @@ import { num } from "@/lib/format";
 import { cloud, useMessages, type AppInfo } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 /**
  * Wraps the whole app in main.tsx. Controlled from Forge Studio → التشغيل → الخصوصية:
@@ -250,7 +251,11 @@ function UpdateLayer() {
   );
 }
 
-export function LockGate({ children }: { children: ReactNode }) {
+/**
+ * overlay = imported (legacy) apps: the original page stays underneath, untouched; LockGate only adds its layers
+ * (paused / locked screens on top, banners, updates). See src/forge-shell.tsx.
+ */
+export function LockGate({ children, overlay = false }: { children: ReactNode; overlay?: boolean }) {
   const [state, setState] = useState<State>(() => (!cloud.enabled ? "open" : isUnlocked() ? "open" : "checking"));
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [adminView, setAdminView] = useState(false);
@@ -302,18 +307,19 @@ export function LockGate({ children }: { children: ReactNode }) {
             التطبيق متوقف للزوار. أنت تراه لأنك مشرف.
           </div>
         )}
-        <PullToRefresh>{children}</PullToRefresh>
+        {overlay ? children : <PullToRefresh>{children}</PullToRefresh>}
         {cloud.enabled && <MessageBanner />}
         <UpdateLayer />
         {import.meta.env.VITE_FORGE_STAGE === "test" && <TestBadge />}
       </>
     );
   }
+  if (state === "checking" && overlay) return null; // the original app shows its own loading
   if (state === "checking") return <div className="grid h-dvh place-items-center bg-background"><span className="size-8 animate-spin rounded-full border-2 border-border border-t-primary" /></div>;
 
   if (state === "paused") {
     return (
-      <div className="grid min-h-dvh place-items-center bg-background p-6">
+      <div className={cn("grid min-h-dvh place-items-center bg-background p-6", overlay && "fixed inset-0 z-[100] overflow-y-auto")}>
         <div className="w-full max-w-sm animate-rise text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-muted text-muted-foreground"><PauseCircle className="size-8" /></span>
           <h1 className="mt-5 text-fluid-xl font-bold">{info?.name || "التطبيق"} متوقف مؤقتاً</h1>
@@ -333,7 +339,7 @@ export function LockGate({ children }: { children: ReactNode }) {
     finally { setBusy(false); }
   };
   return (
-    <div className="grid min-h-dvh place-items-center bg-background p-6">
+    <div className={cn("grid min-h-dvh place-items-center bg-background p-6", overlay && "fixed inset-0 z-[100] overflow-y-auto")}>
       <form className="w-full max-w-sm animate-rise text-center" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-primary/12 text-primary"><Lock className="size-7" /></span>
         <h1 className="mt-5 text-fluid-xl font-bold">{info?.name || "تطبيق خاص"}</h1>

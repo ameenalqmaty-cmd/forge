@@ -76,10 +76,12 @@ jobs:
           npm run assets
           npx cap sync android
 
-      - name: Set version (versionCode = build number)
+      - name: Set version (versionCode only goes up)
         run: |
           VERSION=$(jq -r '.version // "1.0.0"' forge.config.json)
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          # always higher than any earlier build: minutes since 2024 (+ versionCodeBase for apps imported with a higher old code)
+          CODE=$(( ($(date -u +%s) - 1704067200) / 60 + $(jq -r '.versionCodeBase // 0' forge.config.json) ))
+          sed -i -E "s/versionCode [0-9]+/versionCode $CODE/; s/versionName \"[^\"]*\"/versionName \"$VERSION\"/" android/app/build.gradle
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "APP=$(jq -r '.appId | split(".") | last' forge.config.json)" >> "$GITHUB_ENV"
 
@@ -88,7 +90,17 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon -q
+        run: |
+          # an app with its own key (e.g. imported from an earlier build) signs the installable APK with it, so phones update in place
+          if [ "$HAS_KEY" = "true" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > own.keystore
+            ./gradlew assembleDebug --no-daemon -q -Pandroid.injected.signing.store.file=$PWD/own.keystore \
+              -Pandroid.injected.signing.store.password='${{ secrets.ANDROID_KEYSTORE_PASSWORD }}' \
+              -Pandroid.injected.signing.key.alias='${{ secrets.ANDROID_KEY_ALIAS }}' \
+              -Pandroid.injected.signing.key.password='${{ secrets.ANDROID_KEY_PASSWORD }}'
+          else
+            ./gradlew assembleDebug --no-daemon -q
+          fi
 
       - name: Release build (only if a release key is configured)
         if: ${{ env.HAS_KEY == 'true' }}
