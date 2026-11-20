@@ -78,6 +78,12 @@ jobs:
           # the app may hand a downloaded update to Android's installer
           M=android/app/src/main/AndroidManifest.xml
           grep -q REQUEST_INSTALL_PACKAGES "$M" || sed -i 's#</manifest>#    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n</manifest>#' "$M"
+          # no native scroll indicator in the WebView (apps hide their own too)
+          MA=$(find android/app/src/main/java -name MainActivity.java | head -1)
+          if [ -n "$MA" ] && ! grep -q setVerticalScrollBarEnabled "$MA"; then
+            PKG=$(sed -n 's/^package \(.*\);/\1/p' "$MA")
+            printf 'package %s;\n\nimport android.os.Bundle;\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        getBridge().getWebView().setVerticalScrollBarEnabled(false);\n        getBridge().getWebView().setHorizontalScrollBarEnabled(false);\n        getBridge().getWebView().setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);\n    }\n}\n' "$PKG" > "$MA"
+          fi
           npm run assets
           npx cap sync android
 

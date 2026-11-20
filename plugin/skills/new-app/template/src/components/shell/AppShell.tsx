@@ -24,7 +24,7 @@ export function AppShell({
   return (
     <div className="min-h-screen-safe md:flex">
       {/* Side navigation: tablet + desktop */}
-      <aside className="sticky top-0 hidden h-screen-safe shrink-0 flex-col border-e border-border bg-card/60 pt-safe backdrop-blur md:flex md:w-24 lg:w-64">
+      <aside className="sticky top-0 hidden h-screen-safe shrink-0 flex-col border-e border-border bg-card pt-safe md:flex md:w-24 lg:w-64">
         <div className="flex h-16 items-center gap-3 px-5 md:justify-center lg:justify-start">
           <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:size-5">{brand.logo}</div>
           <span className="hidden font-display text-lg font-bold lg:block">{brand.name}</span>
@@ -54,7 +54,7 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/80 pt-safe backdrop-blur-xl">
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-background pt-safe">
           <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-8">
             <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground md:hidden [&_svg]:size-5">{brand.logo}</div>
             <div className="min-w-0 flex-1">{topBar}</div>
@@ -67,7 +67,7 @@ export function AppShell({
       </div>
 
       {/* Bottom tab bar: phones only */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 pb-safe backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-safe md:hidden">
         <div className="mx-auto flex h-16 max-w-md items-stretch">
           {nav.map((item) => {
             const on = item.id === active;
