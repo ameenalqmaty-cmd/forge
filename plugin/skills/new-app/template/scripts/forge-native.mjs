@@ -20,6 +20,9 @@ const parts = [
   read(".forge/brand.json"),
   existsSync(".forge/google-services.json") ? "push" : "",
   "updater-1",
+  // bump this number whenever android.yml changes what the APK itself does (MainActivity patch, manifest entries,
+  // notification channel/tone, native resources): installed APKs then see "install the new APK" after the next publish
+  "android-2",
   process.env.FORGE_NATIVE_EXTRA ?? "",
 ];
 process.stdout.write("n" + createHash("sha256").update(parts.join("\n§\n")).digest("hex").slice(0, 16));
