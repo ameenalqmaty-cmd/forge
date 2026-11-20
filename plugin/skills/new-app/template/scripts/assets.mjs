@@ -86,6 +86,8 @@ writeFileSync(".forge/brand.json", JSON.stringify({ splash: BRAND }, null, 2) + 
 writeFileSync(out("public/icons/icon-192.png"), await fullIcon(192, { radius: 40 }));
 writeFileSync(out("public/icons/icon-512.png"), await flatIcon(512));
 const glyphPng = await glyph(256);
+// small white mark shown in the Android status bar for web notifications (forge-sw.js)
+writeFileSync(out("public/icons/badge-96.png"), await glyph(96));
 writeFileSync(out("public/icons/splash-glyph.png"), glyphPng);
 writeFileSync(out("public/icons/maskable-512.png"), await fullIcon(512, { fgScale: 0.6 }));
 writeFileSync(out("public/icons/apple-touch-icon.png"), await fullIcon(180, { fgScale: 0.7 }));

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Lock, PauseCircle, RefreshCw } from "lucide-react";
-import { cloud, type AppInfo } from "@/lib/cloud";
+import { BellRing, Lock, Megaphone, PauseCircle, RefreshCw, X } from "lucide-react";
+import { cloud, useMessages, type AppInfo } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
  * Checks again every minute and when the app comes back to the foreground. Does nothing without Forge Cloud.
  * Also owns the launch and the pull-to-refresh for every app:
  * - fades out the brand boot screen (#forge-boot, from index.html) once the first real screen is ready;
+ * - shows unread messages from Ahmed / the app's admins as a card at the top (one at a time, important first);
  * - replaces the browser's pull-to-refresh with one in the app's colors. Apps that can refresh in place listen to
  *   `window.addEventListener("forge:refresh", (e) => { e.preventDefault(); reload data… })`; otherwise the page reloads.
  * Forge-managed file: do not edit (the factory refreshes it).
@@ -114,6 +115,80 @@ function PullToRefresh({ children }: { children: ReactNode }) {
   );
 }
 
+/** unread messages, one at a time; "تم" marks it read. Apps with their own inbox can hide it: <html data-forge-banner="off"> */
+const ASKED = `forge-push-asked-${cloud.appId}`;
+/** after "تم" on a message: offer to get the next ones as phone notifications (once every 2 weeks, if possible) */
+function PushOffer({ onDone }: { onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const later = () => { try { localStorage.setItem(ASKED, String(Date.now())); } catch { /* */ } onDone(); };
+  const enable = async () => {
+    setBusy(true);
+    try {
+      const s = await cloud.push.enable();
+      if (s === "on") { setMsg("ستصلك التنبيهات القادمة حتى والتطبيق مغلق ✓"); setTimeout(later, 1800); }
+      else if (s === "denied") { setMsg("الإشعارات ممنوعة لهذا التطبيق من إعدادات الجهاز"); setTimeout(later, 2500); }
+      else later();
+    } catch (e) { setMsg(e instanceof Error ? e.message : "تعذّر التفعيل"); setTimeout(later, 2500); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-3" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}>
+      <div role="dialog" aria-label="تنبيهات الهاتف" className="pointer-events-auto w-full max-w-md animate-rise rounded-2xl border border-border bg-card p-4 shadow-xl">
+        {msg ? <p className="text-sm font-semibold" role="status">{msg}</p> : (
+          <>
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary"><BellRing className="size-5" /></span>
+              <div className="min-w-0"><div className="font-bold">تريد أن تصلك التنبيهات على هاتفك؟</div><p className="mt-0.5 text-sm text-muted-foreground">حتى لو كان التطبيق مغلقاً. يمكنك إيقافها متى شئت.</p></div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button size="sm" disabled={busy} onClick={() => void enable()}>{busy ? "لحظة…" : "نعم، فعّلها"}</Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={later}>لاحقاً</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBanner() {
+  const { unread, markRead } = useMessages();
+  const [hidden, setHidden] = useState(false);
+  const [offer, setOffer] = useState(false);
+  const done = async (id: string) => {
+    await markRead(id);
+    if (unread.length > 1) return;
+    try {
+      const asked = Number(localStorage.getItem(ASKED) || 0);
+      if (Date.now() - asked > 14 * 864e5 && (await cloud.push.state()) === "default") setOffer(true);
+    } catch { /* */ }
+  };
+  if (offer) return <PushOffer onDone={() => setOffer(false)} />;
+  if (hidden || typeof document !== "undefined" && document.documentElement.dataset.forgeBanner === "off") return null;
+  const m = [...unread].sort((a, b) => Number(b.important) - Number(a.important) || b.send_at.localeCompare(a.send_at))[0];
+  if (!m) return null;
+  const more = unread.length - 1;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[70] flex justify-center px-3" style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)" }}>
+      <div key={m.id} role="alert" className={`pointer-events-auto w-full max-w-md animate-rise rounded-2xl border bg-card p-4 shadow-xl ${m.important ? "border-primary/60 ring-2 ring-primary/25" : "border-border"}`}>
+        <div className="flex items-start gap-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${m.important ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+            {m.important ? <Megaphone className="size-5" /> : <BellRing className="size-5" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold leading-snug">{m.title}</div>
+            {m.body && <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{m.body}</p>}
+            <div className="mt-1.5 text-xs text-muted-foreground">{m.sender_name ? `من ${m.sender_name}` : "رسالة"}{more > 0 ? ` · ${more} رسائل أخرى` : ""}</div>
+          </div>
+          <button aria-label="إخفاء" onClick={() => setHidden(true)} className="-m-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground"><X className="size-4" /></button>
+        </div>
+        <Button className="mt-3 w-full" size="sm" variant={m.important ? "default" : "outline"} onClick={() => void done(m.id)}>تم</Button>
+      </div>
+    </div>
+  );
+}
+
 export function LockGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => (!cloud.enabled ? "open" : isUnlocked() ? "open" : "checking"));
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -167,6 +242,7 @@ export function LockGate({ children }: { children: ReactNode }) {
           </div>
         )}
         <PullToRefresh>{children}</PullToRefresh>
+        {cloud.enabled && <MessageBanner />}
       </>
     );
   }

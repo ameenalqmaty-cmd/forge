@@ -37,6 +37,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Phone notifications (Firebase file prepared by Forge)
+        run: |
+          if [ -f .forge/google-services.json ]; then
+            npm i --no-audit --no-fund @capacitor/push-notifications@^8
+            echo "VITE_FORGE_PUSH_ANDROID=1" >> "$GITHUB_ENV"
+          else
+            echo "No .forge/google-services.json — this APK has no phone notifications (messages still show inside the app)"
+          fi
+
       - name: Build web app (connected to Forge Cloud — data, stats, pause, lock)
         run: |
           if [ -f .forge/cloud.json ]; then
@@ -51,6 +60,7 @@ jobs:
       - name: Prepare Android project
         run: |
           [ -d android ] || npx cap add android
+          [ -f .forge/google-services.json ] && cp .forge/google-services.json android/app/google-services.json || true
           npm run assets
           npx cap sync android
 

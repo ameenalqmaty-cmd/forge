@@ -16,7 +16,7 @@
  * Writing needs a signed-in user: cloud.auth.signInAnon() for a device account, or signUp/signIn with email.
  * App admins (set in Forge Studio → التشغيل → الأشخاص) can read and edit every row of the app.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
 const URL_ = import.meta.env.VITE_FORGE_CLOUD_URL as string | undefined;
@@ -24,6 +24,9 @@ const KEY = import.meta.env.VITE_FORGE_CLOUD_KEY as string | undefined;
 const APP = (import.meta.env.VITE_FORGE_APP_ID as string | undefined) ?? "local";
 
 export type Scope = "private" | "app" | "public";
+export type Message = { id: string; title: string; body: string; important: boolean; send_at: string; sender_name: string | null; target: "all" | "admins" | "user"; read: boolean };
+export type NewMessage = { title: string; body?: string; important?: boolean; to?: "all" | "admins" | { user: string }; at?: Date | string; repeat?: "none" | "daily" | "weekly"; push?: boolean };
+export type PushState = "unsupported" | "default" | "denied" | "on";
 export type AppInfo = { locked: boolean; name: string; paused: boolean; message: string | null };
 export type Row<T> = { id: string; data: T; owner: string | null; scope: Scope; createdAt: string; updatedAt: string };
 export type Role = "owner" | "admin" | "user";
@@ -95,6 +98,17 @@ async function ensureSession() {
     else await run();
   })().finally(() => { anonFlight = null; });
   await anonFlight;
+}
+
+const urlB64 = (s: string) => { const p = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4); return Uint8Array.from(atob(p), (c) => c.charCodeAt(0)); };
+/** the Capacitor push plugin, only present in APKs built with Firebase (see android.yml) */
+type NativePush = {
+  checkPermissions(): Promise<{ receive: string }>; requestPermissions(): Promise<{ receive: string }>;
+  register(): Promise<void>; unregister(): Promise<void>; addListener(e: string, f: (x: never) => void): Promise<unknown>;
+};
+async function nativePush(): Promise<NativePush> {
+  const { registerPlugin } = await import("@capacitor/core");
+  return registerPlugin<NativePush>("PushNotifications");
 }
 
 const err = (e: { message?: string } | null) => { if (e) throw new Error(arabicError(e.message ?? "")); };
@@ -279,6 +293,105 @@ export const cloud = {
   /** for apps that don't use hash routes: report the current screen yourself */
   screen(name: string) { if (name !== lastScreen) { lastScreen = name; push("screen", name); } },
 
+  /**
+   * Messages from Ahmed (Studio) and the app's admins. Every app already shows unread ones as a banner (LockGate);
+   * build an inbox screen with useMessages() if the app needs one. Admins send with cloud.messages.send().
+   */
+  messages: {
+    async inbox(limit = 30): Promise<Message[]> {
+      if (!enabled) return [];
+      const { data } = await sb().auth.getSession();
+      if (!data.session) return [];
+      const r = await sb().rpc("forge_inbox", { a: APP, lim: limit }); err(r.error);
+      return (r.data as Message[]) ?? [];
+    },
+    async markRead(id: string) {
+      if (!enabled) return;
+      const { error } = await sb().from("forge_message_reads").upsert({ message_id: id }, { onConflict: "message_id,user_id", ignoreDuplicates: true });
+      if (error && !/duplicate/i.test(error.message)) err(error);
+      window.dispatchEvent(new Event("forge:messages"));
+    },
+    /** admins only (Studio decides who is an admin): send now or later, once or every day/week */
+    async send(m: NewMessage) {
+      if (!enabled) throw new Error("الرسائل تحتاج Forge Cloud");
+      const u = await sb().auth.getUser();
+      const me = u.data.user;
+      const to = m.to ?? "all";
+      const { error } = await sb().from("forge_messages").insert({
+        app_id: APP, title: m.title, body: m.body ?? "", important: !!m.important,
+        target: typeof to === "string" ? to : "user", target_user: typeof to === "string" ? null : to.user,
+        send_at: m.at ? new Date(m.at).toISOString() : new Date().toISOString(), repeat: m.repeat ?? "none", push: m.push ?? true,
+        sender: me?.id, sender_name: (me?.user_metadata?.name as string) || me?.email || null,
+      });
+      err(error);
+    },
+  },
+
+  /**
+   * Phone notifications: messages from Studio/admins arrive even when the app is closed.
+   * Web & installed web app: Web Push. APK: Firebase (when the factory set it up for this app).
+   * Ask at a meaningful moment (LockGate already offers it after the first message); never on launch.
+   */
+  push: {
+    native: () => !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.(),
+    supported(): boolean {
+      if (!enabled || typeof window === "undefined") return false;
+      if (cloud.push.native()) return import.meta.env.VITE_FORGE_PUSH_ANDROID === "1";
+      return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    },
+    async state(): Promise<PushState> {
+      if (!cloud.push.supported()) return "unsupported";
+      if (cloud.push.native()) {
+        const P = await nativePush();
+        const p = await P.checkPermissions();
+        return p.receive === "granted" ? (localStorage.getItem(`forge-push-${APP}`) === "1" ? "on" : "default") : p.receive === "denied" ? "denied" : "default";
+      }
+      if (Notification.permission === "denied") return "denied";
+      const reg = await navigator.serviceWorker.getRegistration("./forge-push/");
+      return (await reg?.pushManager.getSubscription()) ? "on" : "default";
+    },
+    /** asks the system permission and registers this device; returns the new state */
+    async enable(): Promise<PushState> {
+      if (!cloud.push.supported()) return "unsupported";
+      await ensureSession();
+      if (cloud.push.native()) {
+        const P = await nativePush();
+        const perm = await P.requestPermissions();
+        if (perm.receive !== "granted") return "denied";
+        const token = await new Promise<string>((resolve, reject) => {
+          void P.addListener("registration", (t: { value: string }) => resolve(t.value));
+          void P.addListener("registrationError", (e: { error: string }) => reject(new Error(e.error)));
+          void P.register();
+          setTimeout(() => reject(new Error("تعذّر تفعيل الإشعارات")), 20000);
+        });
+        const r = await sb().rpc("forge_push_register", { a: APP, k: "fcm", ep: token, ks: {} }); err(r.error);
+        localStorage.setItem(`forge-push-${APP}`, "1");
+        return "on";
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return perm === "denied" ? "denied" : "default";
+      const reg = await navigator.serviceWorker.register("./forge-sw.js", { scope: "./forge-push/" });
+      // (not serviceWorker.ready: that waits for a worker controlling this page, and ours only lives in ./forge-push/)
+      const sw = reg.installing ?? reg.waiting ?? reg.active;
+      if (sw && sw.state !== "activated") await new Promise<void>((res) => { sw.addEventListener("statechange", () => { if (sw.state === "activated") res(); }); setTimeout(res, 8000); });
+      const res = await fetch(`${URL_}/functions/v1/forge-push?vapid=1`);
+      const { publicKey } = await res.json();
+      let sub: PushSubscription;
+      try { sub = (await reg.pushManager.getSubscription()) ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(publicKey) }); }
+      catch { throw new Error("هذا المتصفح لا يسمح بالإشعارات الآن. جرّب Chrome أو ثبّت التطبيق على الشاشة الرئيسية."); }
+      const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
+      const r = await sb().rpc("forge_push_register", { a: APP, k: "web", ep: j.endpoint, ks: j.keys }); err(r.error);
+      return "on";
+    },
+    async disable() {
+      if (!enabled) return;
+      if (cloud.push.native()) { localStorage.removeItem(`forge-push-${APP}`); await (await nativePush()).unregister().catch(() => {}); return; }
+      const reg = await navigator.serviceWorker.getRegistration("./forge-push/");
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) { await sb().from("forge_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+    },
+  },
+
   /** App lock (set in Studio → الخصوصية) */
   lock: {
     /** lock code + pause state (both set in Studio → التشغيل → الخصوصية) */
@@ -325,4 +438,39 @@ export function useCollection<T = Record<string, unknown>>(name: string, opts: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, key]);
   return { rows: rows ?? [], loading: rows === null && !error, error, reload: () => cloud.collection<T>(name).list(opts).then(setRows) };
+}
+
+/** phone-notification state for a settings switch: { state, enable, disable } */
+export function usePush() {
+  const [state, setState] = useState<PushState | "loading">("loading");
+  useEffect(() => { void cloud.push.state().then(setState).catch(() => setState("unsupported")); }, []);
+  return {
+    state,
+    enable: async () => { try { setState(await cloud.push.enable()); } catch (e) { setState("default"); throw e; } },
+    disable: async () => { await cloud.push.disable(); setState("default"); },
+  };
+}
+
+/** the signed-in person's messages (newest first), refreshed every minute and when the app comes back */
+export function useMessages() {
+  const [messages, setMessages] = useState<Message[] | null>(enabled ? null : []);
+  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    try { setError(null); setMessages(await cloud.messages.inbox()); } catch (e) { setError(e instanceof Error ? e.message : "تعذّر التحميل"); }
+  }, []);
+  useEffect(() => {
+    if (!enabled) return;
+    void reload();
+    const t = setInterval(() => void reload(), 60_000);
+    const vis = () => { if (document.visibilityState === "visible") void reload(); };
+    const off = cloud.auth.onChange(() => void reload());
+    document.addEventListener("visibilitychange", vis);
+    window.addEventListener("forge:messages", reload);
+    return () => { clearInterval(t); off(); document.removeEventListener("visibilitychange", vis); window.removeEventListener("forge:messages", reload); };
+  }, [reload]);
+  const markRead = useCallback(async (id: string) => {
+    setMessages((l) => l?.map((m) => (m.id === id ? { ...m, read: true } : m)) ?? l);
+    await cloud.messages.markRead(id).catch(() => {});
+  }, []);
+  return { messages, unread: (messages ?? []).filter((m) => !m.read), loading: messages === null, error, reload, markRead };
 }
