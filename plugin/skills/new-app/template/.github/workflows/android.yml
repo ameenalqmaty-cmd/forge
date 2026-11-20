@@ -46,6 +46,15 @@ jobs:
             echo "No .forge/google-services.json — this APK has no phone notifications (messages still show inside the app)"
           fi
 
+      - name: In-app updates (live updates + APK download inside the app)
+        run: |
+          N=$(node scripts/forge-native.mjs)   # before adding plugins (they are excluded anyway)
+          npm i --no-audit --no-fund @capgo/capacitor-updater@^8 @capacitor/filesystem@^8 @capawesome-team/capacitor-file-opener@^8
+          V=$(date -u +%Y%m%d%H%M%S)
+          { echo "VITE_FORGE_NATIVE=$N"; echo "VITE_FORGE_WEB_VERSION=$V"; echo "VITE_FORGE_APK_VERSION=$V"; echo "APK_VERSION=$V"; } >> "$GITHUB_ENV"
+          [ -f .forge/cloud.json ] && echo "VITE_FORGE_UPDATER=1" >> "$GITHUB_ENV" || true
+          echo "native $N · version $V"
+
       - name: Build web app (connected to Forge Cloud — data, stats, pause, lock)
         run: |
           if [ -f .forge/cloud.json ]; then
@@ -61,6 +70,9 @@ jobs:
         run: |
           [ -d android ] || npx cap add android
           [ -f .forge/google-services.json ] && cp .forge/google-services.json android/app/google-services.json || true
+          # the app may hand a downloaded update to Android's installer
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q REQUEST_INSTALL_PACKAGES "$M" || sed -i 's#</manifest>#    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n</manifest>#' "$M"
           npm run assets
           npx cap sync android
 
@@ -93,6 +105,20 @@ jobs:
           [ -f android/app/build/outputs/apk/release/app-release.apk ] && cp android/app/build/outputs/apk/release/app-release.apk "out/${APP}-${VERSION}-release.apk" || true
           [ -f android/app/build/outputs/bundle/release/app-release.aab ] && cp android/app/build/outputs/bundle/release/app-release.aab "out/${APP}-${VERSION}-play.aab" || true
           ls -la out
+
+      - name: Publish the APK for in-app updates (Forge Cloud)
+        env:
+          RELEASE_KEY: ${{ secrets.FORGE_RELEASE_KEY }}
+        continue-on-error: true
+        run: |
+          if [ -z "$RELEASE_KEY" ] || [ ! -f .forge/cloud.json ]; then echo "In-app updates not set up for this app yet (Studio prepares it on the next build)"; exit 0; fi
+          URL=$(jq -r .url .forge/cloud.json); ANON=$(jq -r .key .forge/cloud.json); APPID=$(jq -r .app .forge/cloud.json)
+          NOTES=$(git log -1 --pretty=%s | head -c 200 | jq -sRr @uri)
+          CODE=$(curl -s -o /tmp/rel.json -w '%{http_code}' -X POST \
+            "$URL/functions/v1/forge-release?action=apk&app=$APPID&version=$APK_VERSION&native=$VITE_FORGE_NATIVE&notes=$NOTES" \
+            -H "apikey: $ANON" -H "x-forge-release: $RELEASE_KEY" -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @android/app/build/outputs/apk/debug/app-debug.apk)
+          echo "HTTP $CODE: $(cat /tmp/rel.json)"
 
       - uses: actions/upload-artifact@v4
         with:

@@ -12,6 +12,8 @@ const config: CapacitorConfig = {
   android: { allowMixedContent: false, ...(brand ? { backgroundColor: brand } : {}) },
   ...(brand ? { backgroundColor: brand } : {}),
   plugins: {
+    // live updates (src/lib/updates.ts): fully controlled by the app; no Capgo cloud, no telemetry; a new APK resets to its own files
+    CapacitorUpdater: { autoUpdate: false, resetWhenUpdate: true, appReadyTimeout: 15000, autoDeleteFailed: true, autoDeletePrevious: true, statsUrl: "", updateUrl: "", channelUrl: "" },
     SplashScreen: { launchShowDuration: 600, launchAutoHide: true, launchFadeOutDuration: 200, androidScaleType: "CENTER_CROP", showSpinner: false, ...(brand ? { backgroundColor: brand } : {}) },
     LocalNotifications: { smallIcon: "ic_stat_notify", iconColor: "#000000" },
     PushNotifications: { presentationOptions: ["badge", "sound", "alert"] },

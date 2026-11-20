@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BellRing, Lock, Megaphone, PauseCircle, RefreshCw, X } from "lucide-react";
+import { BellRing, Download, Lock, Megaphone, PauseCircle, RefreshCw, Sparkles, X } from "lucide-react";
+import { useAppUpdates } from "@/lib/updates";
+import { num } from "@/lib/format";
 import { cloud, useMessages, type AppInfo } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -189,6 +191,65 @@ function MessageBanner() {
   );
 }
 
+/** APK updates: a full-screen step when mandatory, a small card when optional (see src/lib/updates.ts) */
+function UpdateLayer() {
+  const { state, applyNow, installApk, dismiss } = useAppUpdates();
+  if (state.kind === "idle") return null;
+  const mb = (n: number) => (n ? `${num(Math.round((n / 1024 / 1024) * 10) / 10)} م.ب` : "");
+  const notes = "notes" in state ? state.notes : null;
+
+  // full screen: mandatory, or something is in progress
+  const full = state.kind === "web-applying" || state.kind === "apk-downloading" || (("mandatory" in state) && state.mandatory);
+  if (full) {
+    const percent = state.kind === "web-applying" || state.kind === "apk-downloading" ? state.percent : null;
+    return (
+      <div className="fixed inset-0 z-[90] grid place-items-center bg-background p-6" role="dialog" aria-label="تحديث التطبيق">
+        <div className="w-full max-w-sm animate-rise text-center">
+          <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-primary/12 text-primary"><Sparkles className="size-8" /></span>
+          <h1 className="mt-5 text-fluid-xl font-bold">{percent !== null ? "يُحدَّث التطبيق" : "تحديث جديد مطلوب"}</h1>
+          <p className="mt-2 text-muted-foreground">{percent !== null ? "لحظات ويعود التطبيق بالنسخة الجديدة." : notes || "حدّث التطبيق لتتابع استخدامه."}</p>
+          {percent !== null ? (
+            <div className="mt-6">
+              <div className="h-2.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-300" style={{ width: `${Math.max(4, percent)}%` }} /></div>
+              <p className="mt-2 text-sm tabular-nums text-muted-foreground">{num(percent)}٪</p>
+            </div>
+          ) : state.kind === "apk-error" ? (
+            <>
+              <p className="mt-4 text-sm text-destructive">تعذّر التحميل. تأكد من الاتصال ثم حاول مرة أخرى.</p>
+              <Button className="mt-4 w-full" size="lg" onClick={() => void installApk()}><Download /> حاول مرة أخرى</Button>
+            </>
+          ) : state.kind === "apk" ? (
+            <>
+              <Button className="mt-6 w-full" size="lg" onClick={() => void installApk()}><Download /> حدّث الآن {mb(state.size) && `(${mb(state.size)})`}</Button>
+              <p className="mt-3 text-xs text-muted-foreground">بعد التحميل سيطلب أندرويد تأكيد «تثبيت». في المرة الأولى قد يطلب السماح بالتثبيت من هذا التطبيق.</p>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // optional: small card at the bottom
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[65] flex justify-center px-3" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}>
+      <div role="status" className="pointer-events-auto w-full max-w-md animate-rise rounded-2xl border border-border bg-card p-4 shadow-xl">
+        <div className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary"><Sparkles className="size-5" /></span>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold">{state.kind === "web-ready" ? "تحديث جديد جاهز" : "إصدار جديد من التطبيق"}</div>
+            <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{notes || (state.kind === "web-ready" ? "يُطبَّق تلقائياً عند الفتح القادم، أو الآن." : "حمّله وثبّته متى شئت.")}</p>
+          </div>
+          <button aria-label="لاحقاً" onClick={dismiss} className="-m-2 grid size-11 shrink-0 place-items-center rounded-full text-muted-foreground"><X className="size-4" /></button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button size="sm" onClick={() => void (state.kind === "web-ready" ? applyNow() : installApk())}>{state.kind === "web-ready" ? "حدّث الآن" : <><Download /> تحميل {mb("size" in state ? state.size : 0)}</>}</Button>
+          <Button size="sm" variant="outline" onClick={dismiss}>لاحقاً</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LockGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => (!cloud.enabled ? "open" : isUnlocked() ? "open" : "checking"));
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -243,6 +304,7 @@ export function LockGate({ children }: { children: ReactNode }) {
         )}
         <PullToRefresh>{children}</PullToRefresh>
         {cloud.enabled && <MessageBanner />}
+        <UpdateLayer />
       </>
     );
   }
