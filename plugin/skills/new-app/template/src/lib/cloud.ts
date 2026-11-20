@@ -23,7 +23,7 @@ const URL_ = import.meta.env.VITE_FORGE_CLOUD_URL as string | undefined;
 const KEY = import.meta.env.VITE_FORGE_CLOUD_KEY as string | undefined;
 const APP = (import.meta.env.VITE_FORGE_APP_ID as string | undefined) ?? "local";
 
-export type Scope = "private" | "app" | "public";
+export type Scope = "private" | "app" | "shared" | "public"; // shared = every member can read AND edit (delete: owner/admins)
 export type Message = { id: string; title: string; body: string; important: boolean; send_at: string; sender_name: string | null; target: "all" | "admins" | "user"; read: boolean };
 export type NewMessage = { title: string; body?: string; important?: boolean; to?: "all" | "admins" | { user: string }; at?: Date | string; repeat?: "none" | "daily" | "weekly"; push?: boolean };
 export type PushState = "unsupported" | "default" | "denied" | "on";
