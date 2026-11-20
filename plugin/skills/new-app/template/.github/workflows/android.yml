@@ -85,7 +85,7 @@ jobs:
             printf 'package %s;\n\nimport android.os.Bundle;\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(Bundle savedInstanceState) {\n        super.onCreate(savedInstanceState);\n        getBridge().getWebView().setVerticalScrollBarEnabled(false);\n        getBridge().getWebView().setHorizontalScrollBarEnabled(false);\n        getBridge().getWebView().setOverScrollMode(android.view.View.OVER_SCROLL_NEVER);\n    }\n}\n' "$PKG" > "$MA"
           fi
           # notification tone + default channel (Firebase puts every push in it)
-          mkdir -p android/app/src/main/res/raw && cp public/sounds/notify.wav android/app/src/main/res/raw/notify.wav
+          mkdir -p android/app/src/main/res/raw && { [ -f public/sounds/notify.wav ] && cp public/sounds/notify.wav android/app/src/main/res/raw/notify.wav || echo "::warning::public/sounds/notify.wav missing - default notification sound"; }
           grep -q default_notification_channel_id "$M" || sed -i 's#</application>#        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="forge-default" />\n    </application>#' "$M"
           npm run assets
           npx cap sync android
