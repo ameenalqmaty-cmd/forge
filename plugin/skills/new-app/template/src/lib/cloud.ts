@@ -16,7 +16,8 @@
  * Writing needs a signed-in user: cloud.auth.signInAnon() for a device account, or signUp/signIn with email.
  * App admins (set in Forge Studio → التشغيل → الأشخاص) can read and edit every row of the app.
  */
-import { useCallback, useEffect, useState } from "react";
+import { initNotifySound, playNotify } from "./sound";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
 const URL_ = import.meta.env.VITE_FORGE_CLOUD_URL as string | undefined;
@@ -566,8 +567,16 @@ export function usePush() {
 export function useMessages() {
   const [messages, setMessages] = useState<Message[] | null>(enabled ? null : []);
   const [error, setError] = useState<string | null>(null);
+  const seen = useRef<Set<string> | null>(null);
   const reload = useCallback(async () => {
-    try { setError(null); setMessages(await cloud.messages.inbox()); } catch (e) { setError(e instanceof Error ? e.message : "تعذّر التحميل"); }
+    try {
+      setError(null);
+      const list = await cloud.messages.inbox();
+      const ids = new Set(list.filter((m) => !m.read).map((m) => m.id));
+      if (seen.current && [...ids].some((id) => !seen.current!.has(id)) && document.visibilityState === "visible") playNotify();
+      seen.current = ids;
+      setMessages(list);
+    } catch (e) { setError(e instanceof Error ? e.message : "تعذّر التحميل"); }
   }, []);
   useEffect(() => {
     if (!enabled) return;
@@ -585,3 +594,6 @@ export function useMessages() {
   }, []);
   return { messages, unread: (messages ?? []).filter((m) => !m.read), loading: messages === null, error, reload, markRead };
 }
+
+// notification tone: native channel + play while the app is open (see sound.ts)
+if (typeof window !== "undefined") void initNotifySound(nativePush);
