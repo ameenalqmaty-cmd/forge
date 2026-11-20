@@ -30,7 +30,11 @@ export type PushState = "unsupported" | "default" | "denied" | "on";
 export type AppInfo = { locked: boolean; name: string; paused: boolean; message: string | null };
 export type Row<T> = { id: string; data: T; owner: string | null; scope: Scope; createdAt: string; updatedAt: string };
 export type Role = "owner" | "admin" | "user";
-export type CloudUser = { id: string; email: string | null; name: string | null; anonymous: boolean; role: Role };
+export type CloudUser = {
+  id: string; email: string | null; name: string | null; anonymous: boolean; role: Role;
+  /** set while Ahmed is looking at the app AS this person (Studio → الأشخاص → «ادخل كأنه هو»); ends by itself at `until` */
+  acting?: { until: string } | null;
+};
 
 let client: SupabaseClient | null = null;
 const sb = () => (client ??= createClient(URL_!, KEY!, { auth: { persistSession: true, autoRefreshToken: true, storageKey: `forge-${APP}` } }));
@@ -59,7 +63,36 @@ async function toCloudUser(u: User | null | undefined): Promise<CloudUser | null
     const { data } = await sb().rpc("forge_touch", { a: APP, p_email: u.email ?? null, p_name: (u.user_metadata?.name as string) ?? null });
     if (data) role = data as Role;
   } catch { /* offline: keep user */ }
-  return { id: u.id, email: u.email ?? null, name: (u.user_metadata?.name as string) ?? null, anonymous: !!u.is_anonymous, role };
+  const me: CloudUser = { id: u.id, email: u.email ?? null, name: (u.user_metadata?.name as string) ?? null, anonymous: !!u.is_anonymous, role };
+  return (await actingAs()) ?? me;
+}
+
+// ---- «ادخل كأنه هو»: a one-time grant from Studio in ?forge_act=… → this device acts as that person for 30 minutes.
+// The server decides everything (forge_uid() in the database); the app only learns who "me" is now.
+const ACT = `forge-acting-${APP}`;
+let claim: Promise<void> | null = null;
+export let actingError = "";
+async function actingAs(): Promise<CloudUser | null> {
+  if (typeof location === "undefined") return null;
+  const q = new URLSearchParams(location.search);
+  const token = q.get("forge_act");
+  if (token) {
+    claim ??= (async () => {
+      q.delete("forge_act");
+      history.replaceState(null, "", location.pathname + (q.toString() ? `?${q}` : "") + location.hash);
+      const { error } = await sb().rpc("forge_act_claim", { a: APP, t: token });
+      if (error) actingError = arabicError(error.message); else try { localStorage.setItem(ACT, "1"); } catch { /* */ }
+    })();
+  }
+  if (claim) await claim;
+  let flagged = false; try { flagged = localStorage.getItem(ACT) === "1"; } catch { /* */ }
+  if (!flagged) return null;
+  try {
+    const { data } = await sb().rpc("forge_whoami", { a: APP });
+    const w = data as { acting: boolean; id: string; name: string | null; email: string | null; role: Role; until: string | null } | null;
+    if (!w?.acting) { localStorage.removeItem(ACT); return null; }
+    return { id: w.id, email: w.email, name: w.name, anonymous: false, role: w.role, acting: { until: w.until! } };
+  } catch { return null; }
 }
 function setUser(u: CloudUser | null) { current = u; authSubs.forEach((f) => f(u)); }
 
@@ -132,7 +165,7 @@ let errorCount = 0;
 let lastScreen = "";
 const clip = (v: string, n: number) => (v.length > n ? v.slice(0, n) : v);
 function push(kind: Ev["kind"], name: string, data: Record<string, unknown> = {}) {
-  if (!enabled || !name) return;
+  if (!enabled || !name || current?.acting) return; // Ahmed looking as someone is not that person's activity
   queue.push({ kind, name: clip(String(name), 150), data, at: new Date().toISOString() });
   if (queue.length > 200) queue.splice(0, queue.length - 200);
 }
@@ -209,6 +242,12 @@ export const cloud = {
     async signOut() {
       if (!enabled) { try { localStorage.removeItem(`${LK}-user`); } catch { /* */ } setUser(null); return; }
       await sb().auth.signOut();
+    },
+    /** leave «ادخل كأنه هو» (Studio): back to this device's own account */
+    async stopActing() {
+      try { localStorage.removeItem(ACT); } catch { /* */ }
+      if (enabled) await sb().rpc("forge_act_end");
+      location.reload();
     },
     async updateName(name: string) {
       if (!enabled) { if (current) { current = { ...current, name }; localStorage.setItem(`${LK}-user`, JSON.stringify(current)); setUser(current); } return; }

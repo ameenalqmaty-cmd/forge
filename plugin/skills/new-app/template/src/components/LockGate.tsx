@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BellRing, Download, Lock, Megaphone, PauseCircle, RefreshCw, Sparkles, X } from "lucide-react";
+import { BellRing, Download, Eye, Lock, Megaphone, PauseCircle, RefreshCw, Sparkles, X } from "lucide-react";
 import { useAppUpdates } from "@/lib/updates";
 import { num } from "@/lib/format";
-import { cloud, useMessages, type AppInfo } from "@/lib/cloud";
+import { actingError, cloud, useMessages, type AppInfo, type CloudUser } from "@/lib/cloud";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -311,6 +311,7 @@ export function LockGate({ children, overlay = false }: { children: ReactNode; o
         {cloud.enabled && <MessageBanner />}
         <UpdateLayer />
         {import.meta.env.VITE_FORGE_STAGE === "test" && <TestBadge />}
+        {cloud.enabled && <ActingBar />}
       </>
     );
   }
@@ -365,5 +366,36 @@ function TestBadge() {
       className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] start-2 z-[60] inline-flex min-h-8 items-center gap-1.5 rounded-full bg-foreground/85 px-2.5 text-xs font-bold text-background shadow-md">
       <span className="size-2 shrink-0 rounded-full bg-warning" />{open && <span>نسخة تجريبية · بيانات منفصلة</span>}
     </button>
+  );
+}
+
+/** Ahmed is looking at the app AS someone (Studio → الأشخاص → «ادخل كأنه هو»): always visible, one tap to leave, ends by itself. */
+function ActingBar() {
+  const [u, setU] = useState<CloudUser | null>(() => cloud.auth.user());
+  const [failed, setFailed] = useState("");
+  useEffect(() => cloud.auth.onChange((x) => { setU(x); if (actingError) setFailed(actingError); }), []);
+  const until = u?.acting?.until;
+  useEffect(() => {
+    if (!until) return;
+    const ms = Date.parse(until) - Date.now();
+    const t = setTimeout(() => void cloud.auth.stopActing(), Math.max(0, ms));
+    return () => clearTimeout(t);
+  }, [until]);
+  if (failed && !until) {
+    return (
+      <div role="alert" className="fixed inset-x-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-[70] mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-destructive px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg">
+        <span className="min-w-0 flex-1">{failed}</span>
+        <button type="button" aria-label="إغلاق" className="grid size-9 place-items-center rounded-full" onClick={() => setFailed("")}><X className="size-4" /></button>
+      </div>
+    );
+  }
+  if (!until) return null;
+  const end = new Date(until).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
+  return (
+    <div role="status" className="fixed inset-x-0 top-0 z-[70] flex items-center gap-2 bg-destructive px-3 pb-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-sm font-semibold text-primary-foreground shadow-md">
+      <Eye className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1 truncate">تتصفح كـ {u?.name || "هذا الشخص"} · ما تعدّله يُحفظ في حسابه · حتى {end}</span>
+      <button type="button" onClick={() => void cloud.auth.stopActing()} className="min-h-9 shrink-0 rounded-full bg-primary-foreground/20 px-3 text-sm font-bold">خروج</button>
+    </div>
   );
 }
