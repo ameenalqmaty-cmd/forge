@@ -391,11 +391,40 @@ function ActingBar() {
   }
   if (!until) return null;
   const end = new Date(until).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
+  return <ActingChip name={u?.name || "هذا الشخص"} end={end} />;
+}
+
+/** a small chip, not a full-width bar: it never hides the app's own header; drag it anywhere and it stays there for the session */
+const POS_KEY = "forge.acting.pos";
+export function ActingChip({ name, end }: { name: string; end: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ dx: number; dy: number } | null>(null);
+  const last = useRef<{ x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(() => { try { return JSON.parse(sessionStorage.getItem(POS_KEY) ?? "null"); } catch { return null; } });
+  const down = (e: React.PointerEvent) => {
+    const r = ref.current?.getBoundingClientRect(); if (!r) return;
+    drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  };
+  const move = (e: React.PointerEvent) => {
+    const r = ref.current?.getBoundingClientRect(); if (!drag.current || !r) return;
+    const p = { x: Math.min(Math.max(4, e.clientX - drag.current.dx), window.innerWidth - r.width - 4), y: Math.min(Math.max(4, e.clientY - drag.current.dy), window.innerHeight - r.height - 4) };
+    last.current = p; setPos(p);
+  };
+  const up = () => { drag.current = null; if (last.current) try { sessionStorage.setItem(POS_KEY, JSON.stringify(last.current)); } catch { /* */ } };
   return (
-    <div role="status" className="fixed inset-x-0 top-0 z-[70] flex items-center gap-2 bg-destructive px-3 pb-1.5 pt-[calc(0.375rem+env(safe-area-inset-top))] text-sm font-semibold text-primary-foreground shadow-md">
-      <Eye className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">تتصفح كـ {u?.name || "هذا الشخص"} · ما تعدّله يُحفظ في حسابه · حتى {end}</span>
-      <button type="button" onClick={() => void cloud.auth.stopActing()} className="min-h-9 shrink-0 rounded-full bg-primary-foreground/20 px-3 text-sm font-bold">خروج</button>
+    <div
+      ref={ref}
+      role="status"
+      title={`تتصفح كـ ${name} · ما تعدّله يُحفظ في حسابه · حتى ${end}`}
+      style={pos ? { left: pos.x, top: pos.y } : { left: "50%", top: "calc(0.5rem + env(safe-area-inset-top))", transform: "translateX(-50%)" }}
+      className="fixed z-[70] flex max-w-[calc(100vw-1rem)] items-center gap-0.5 rounded-full bg-destructive ps-1 pe-1.5 text-primary-foreground shadow-lg"
+    >
+      <button type="button" aria-label="اسحب لتحريك الشريط" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} className="grid size-9 shrink-0 cursor-grab touch-none place-items-center rounded-full active:cursor-grabbing">
+        <Eye className="size-4" />
+      </button>
+      <span className="min-w-0 max-w-[6.5rem] truncate text-sm font-semibold">كـ {name}</span>
+      <button type="button" onClick={() => void cloud.auth.stopActing()} className="ms-1 min-h-9 shrink-0 rounded-full bg-primary-foreground/20 px-3 text-sm font-bold">خروج</button>
     </div>
   );
 }
