@@ -91,7 +91,7 @@ jobs:
       - name: Build APK
         working-directory: android
         run: |
-          # an app with its own key (e.g. imported from an earlier build) signs the installable APK with it, so phones update in place
+          # every Forge app has its own key (made by the Studio factory, or brought by an import) → phones update in place
           if [ "$HAS_KEY" = "true" ]; then
             echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > own.keystore
             ./gradlew assembleDebug --no-daemon -q -Pandroid.injected.signing.store.file=$PWD/own.keystore \
@@ -99,6 +99,7 @@ jobs:
               -Pandroid.injected.signing.key.alias='${{ secrets.ANDROID_KEY_ALIAS }}' \
               -Pandroid.injected.signing.key.password='${{ secrets.ANDROID_KEY_PASSWORD }}'
           else
+            echo "::warning::لا يوجد مفتاح توقيع خاص بالتطبيق؛ وُقّع بالمفتاح المشترك المؤقت. ابنِ التطبيق مرة من Studio ليُنشأ مفتاحه ثم أعد بناء الـ APK."
             ./gradlew assembleDebug --no-daemon -q
           fi
 
