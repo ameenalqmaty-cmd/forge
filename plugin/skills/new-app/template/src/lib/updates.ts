@@ -39,7 +39,10 @@ const APP = (env.VITE_FORGE_APP_ID as string | undefined) ?? "";
 const NATIVE = (env.VITE_FORGE_NATIVE as string | undefined) ?? "";
 const APK_KEY = `forge-apk-version-${APP}`;
 
-const native = () => !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+type Cap = { isNativePlatform?: () => boolean; isPluginAvailable?: (n: string) => boolean };
+const cap = () => (window as unknown as { Capacitor?: Cap }).Capacitor;
+// only a Forge-built APK carries the updater; an older shell that just loads the site (e.g. an imported app's old APK) skips it
+const native = () => !!cap()?.isNativePlatform?.() && !!cap()?.isPluginAvailable?.("CapacitorUpdater");
 export const updatesEnabled = () => typeof window !== "undefined" && native() && !!URL_ && !!KEY && !!NATIVE && env.VITE_FORGE_UPDATER === "1";
 
 async function plugin<T>(name: string): Promise<T> {
