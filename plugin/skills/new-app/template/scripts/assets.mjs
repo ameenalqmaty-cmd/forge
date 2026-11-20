@@ -43,9 +43,20 @@ const C = {
 };
 
 /* ---------- sources ---------- */
-const fg = readFileSync("assets/icon-foreground.svg");
-const customIcon = existsSync("assets/icon.svg") ? readFileSync("assets/icon.svg") : null;
-const notif = existsSync("assets/notification.svg") ? readFileSync("assets/notification.svg") : fg;
+// An IMPORTED app ("legacy": true) keeps its own look: its own icon files (PNG or SVG), its own colour, its own manifest
+// and index.html (never rewritten). Files: assets/icon.(png|svg) = full icon, assets/icon-maskable.(png|svg) = full-bleed
+// icon for Android adaptive/splash, assets/notification.(png|svg) = white mark on transparent. Colour: forge.config.json
+// "brand", else the original manifest's background_color.
+const legacy = !!cfg.legacy;
+const pick = (n) => ["svg", "png"].map((x) => `assets/${n}.${x}`).find((f) => existsSync(f));
+const read = (f) => (f ? readFileSync(f) : null);
+const customIcon = read(pick("icon"));
+const maskIcon = legacy ? read(pick("icon-maskable")) ?? customIcon : null;
+const fgFile = pick("icon-foreground");
+const fg = read(fgFile) ?? (legacy ? null : readFileSync("assets/icon-foreground.svg"));
+const notif = read(pick("notification")) ?? fg;
+if (legacy && !customIcon) throw new Error("imported app: put its own icon at assets/icon.png (and icon-maskable.png, notification.png)");
+if (legacy && !notif) throw new Error("imported app: put its white notification mark at assets/notification.png");
 
 const bgSvg = (size, radius = 0) => Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${C.primary}"/><stop offset="1" stop-color="${C.primaryDark}"/></linearGradient></defs><rect width="${size}" height="${size}" rx="${radius}" fill="url(#g)"/></svg>`);
@@ -71,10 +82,13 @@ async function silhouette(input, size, pad = 0) {
 /* ---------- launch: one brand color from the system splash to the first screen ---------- */
 // The splash (installed web app, APK) and the boot screen in index.html all use the same flat brand color with the
 // white mark in the middle, so opening the app is one continuous screen instead of icon-square → white flash → app.
-const BRAND = C.primary;
-const glyph = async (size) => silhouette(fg, size, 0.12);
+let origManifest = {};
+try { if (legacy) origManifest = JSON.parse(readFileSync("public/manifest.webmanifest", "utf8")); } catch {}
+const BRAND = (legacy && (cfg.brand || origManifest.background_color || origManifest.theme_color)) || C.primary;
+const glyph = async (size) => silhouette(notif, size, 0.12);
 /** flat, full-bleed icon in the brand color (what Chrome puts on the splash: it blends into background_color) */
 async function flatIcon(size, scale = 0.5) {
+  if (maskIcon) return png(maskIcon, size).toBuffer();
   if (customIcon) return png(customIcon, size).toBuffer();
   const f = await glyph(Math.round(size * scale));
   return sharp({ create: { width: size, height: size, channels: 4, background: BRAND } }).composite([{ input: f, gravity: "center" }]).png().toBuffer();
@@ -83,11 +97,12 @@ mkdirSync(".forge", { recursive: true });
 writeFileSync(".forge/brand.json", JSON.stringify({ splash: BRAND }, null, 2) + "\n");
 
 /* ---------- web / PWA ---------- */
-writeFileSync(out("public/icons/icon-192.png"), await fullIcon(192, { radius: 40 }));
-writeFileSync(out("public/icons/icon-512.png"), await flatIcon(512));
 const glyphPng = await glyph(256);
+writeFileSync(out("public/icons/icon-192.png"), await fullIcon(192, { radius: 40 }));
 // small white mark shown in the Android status bar for web notifications (forge-sw.js)
 writeFileSync(out("public/icons/badge-96.png"), await glyph(96));
+if (!legacy) {
+writeFileSync(out("public/icons/icon-512.png"), await flatIcon(512));
 writeFileSync(out("public/icons/splash-glyph.png"), glyphPng);
 writeFileSync(out("public/icons/maskable-512.png"), await fullIcon(512, { fgScale: 0.6 }));
 writeFileSync(out("public/icons/apple-touch-icon.png"), await fullIcon(180, { fgScale: 0.7 }));
@@ -122,6 +137,7 @@ html = /<!-- forge-boot -->[\s\S]*?<!-- \/forge-boot -->/.test(html)
   ? html.replace(/<!-- forge-boot -->[\s\S]*?<!-- \/forge-boot -->/, boot)
   : html.replace(/<body([^>]*)>/, `<body$1>\n    ${boot}`);
 writeFileSync("index.html", html);
+}
 
 /* ---------- Android ---------- */
 let androidDone = false;
@@ -130,21 +146,26 @@ if (existsSync("android/app/src/main/res")) {
   const dens = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
   for (const [d, k] of Object.entries(dens)) {
     writeFileSync(out(`${res}/mipmap-${d}/ic_launcher.png`), await fullIcon(48 * k, { radius: 10 * k, fgScale: 0.7 }));
-    const round = await fullIcon(48 * k, { fgScale: 0.62 });
+    const round = maskIcon ? await png(maskIcon, 48 * k).toBuffer() : await fullIcon(48 * k, { fgScale: 0.62 });
     const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${48 * k}" height="${48 * k}"><circle cx="${24 * k}" cy="${24 * k}" r="${24 * k}"/></svg>`);
     writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_round.png`), await sharp(round).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer());
     // adaptive foreground: 108dp canvas, mark inside central 66dp
     const fgSize = Math.round(108 * k);
-    const f = await png(fg, Math.round(fgSize * 0.5)).toBuffer();
-    writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_foreground.png`), await sharp({ create: { width: fgSize, height: fgSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: f, gravity: "center" }]).png().toBuffer());
-    writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_monochrome.png`), await silhouette(fg, fgSize, 0.25));
+    if (maskIcon) {
+      // full-bleed icon of the imported app fills the adaptive canvas (its mark sits in the middle, like the original)
+      writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_foreground.png`), await png(maskIcon, fgSize).toBuffer());
+    } else {
+      const f = await png(fg, Math.round(fgSize * 0.5)).toBuffer();
+      writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_foreground.png`), await sharp({ create: { width: fgSize, height: fgSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite([{ input: f, gravity: "center" }]).png().toBuffer());
+    }
+    writeFileSync(out(`${res}/mipmap-${d}/ic_launcher_monochrome.png`), await silhouette(notif, fgSize, 0.25));
     // notification icon: 24dp white silhouette
     writeFileSync(out(`${res}/drawable-${d}/ic_stat_notify.png`), await silhouette(notif, Math.round(24 * k), 0.04));
   }
   const adaptive = `<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n  <background android:drawable="@color/ic_launcher_background"/>\n  <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n  <monochrome android:drawable="@mipmap/ic_launcher_monochrome"/>\n</adaptive-icon>\n`;
   writeFileSync(out(`${res}/mipmap-anydpi-v26/ic_launcher.xml`), adaptive);
   writeFileSync(out(`${res}/mipmap-anydpi-v26/ic_launcher_round.xml`), adaptive);
-  writeFileSync(out(`${res}/values/ic_launcher_background.xml`), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">${C.primary}</color>\n  <color name="notification_accent">${C.primary}</color>\n  <color name="forge_brand">${BRAND}</color>\n</resources>\n`);
+  writeFileSync(out(`${res}/values/ic_launcher_background.xml`), `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="ic_launcher_background">${legacy ? BRAND : C.primary}</color>\n  <color name="notification_accent">${legacy ? BRAND : C.primary}</color>\n  <color name="forge_brand">${BRAND}</color>\n</resources>\n`);
   // Android 12+ system splash: brand background + the white mark (icon area = central 2/3 of a 288dp canvas)
   for (const [d, k] of Object.entries(dens)) {
     const size = Math.round(288 * k);

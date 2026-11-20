@@ -5,3 +5,5 @@
 - `notification.svg` — optional. Single-color silhouette for Android notifications. If missing, derived from the foreground.
 
 Run `npm run assets` → generates every size for PWA, favicon, Android launcher (adaptive + round + monochrome), notification icon and splash. Colors come from the theme in `forge.config.json`.
+
+**Imported apps** (`"legacy": true` in forge.config.json) keep their own look: `icon.png|svg` (full icon), `icon-maskable.png|svg` (full-bleed, for Android adaptive/round/splash), `notification.png|svg` (white mark on transparent). Colour = `"brand"` in forge.config.json, else the original manifest's `background_color`. The app's own `index.html` and `manifest.webmanifest` are never rewritten.
