@@ -45,9 +45,11 @@ const cap = () => (window as unknown as { Capacitor?: Cap }).Capacitor;
 const native = () => !!cap()?.isNativePlatform?.() && !!cap()?.isPluginAvailable?.("CapacitorUpdater");
 export const updatesEnabled = () => typeof window !== "undefined" && native() && !!URL_ && !!KEY && !!NATIVE && env.VITE_FORGE_UPDATER === "1";
 
-async function plugin<T>(name: string): Promise<T> {
+// NEVER return a Capacitor plugin proxy from an async function / promise: `await` calls its `.then`, which the proxy
+// forwards to Android as a plugin method → "CapacitorUpdater.then() is not implemented on android". Box it.
+async function plugin<T>(name: string): Promise<{ p: T }> {
   const { registerPlugin } = await import("@capacitor/core");
-  return registerPlugin<T>(name);
+  return { p: registerPlugin<T>(name) };
 }
 
 async function latest(): Promise<Release | null> {
@@ -79,7 +81,7 @@ export function useAppUpdates() {
       if (busy.current) return;
       busy.current = true;
       try {
-        const up = await plugin<Updater>("CapacitorUpdater");
+        const up = (await plugin<Updater>("CapacitorUpdater")).p;
         if (!started) { started = true; await up.notifyAppReady().catch(() => {}); } // keeps this bundle (no automatic rollback)
         const rel = await latest();
         if (!rel || !alive) return;
@@ -120,7 +122,7 @@ export function useAppUpdates() {
 
   const applyNow = async () => {
     if (state.kind !== "web-ready") return;
-    const up = await plugin<Updater>("CapacitorUpdater");
+    const up = (await plugin<Updater>("CapacitorUpdater")).p;
     setState({ kind: "web-applying", percent: 100, notes: state.notes });
     await up.set({ id: state.bundle.id });
   };
@@ -134,12 +136,12 @@ export function useAppUpdates() {
       // Filesystem.downloadFile still ships in v8 (deprecated in favour of @capacitor/file-transfer; swap when it is removed)
       type Fs = { downloadFile(o: { url: string; path: string; directory: string; progress?: boolean }): Promise<{ path?: string }>;
         addListener(e: "progress", f: (p: { bytes: number; contentLength: number }) => void): Promise<{ remove(): Promise<void> }> };
-      const fs = await plugin<Fs>("Filesystem");
+      const fs = (await plugin<Fs>("Filesystem")).p;
       const sub = await fs.addListener("progress", (p) => setState({ kind: "apk-downloading", percent: Math.min(99, Math.round((p.bytes / (p.contentLength || size || 1)) * 100)), mandatory }));
       const res = await fs.downloadFile({ url, path: `update-${version}.apk`, directory: "CACHE", progress: true });
       await sub.remove();
       setState({ kind: "apk-downloading", percent: 100, mandatory });
-      const opener = await plugin<{ openFile(o: { path: string; mimeType: string }): Promise<void> }>("FileOpener");
+      const opener = (await plugin<{ openFile(o: { path: string; mimeType: string }): Promise<void> }>("FileOpener")).p;
       await opener.openFile({ path: res.path!, mimeType: "application/vnd.android.package-archive" });
       setState({ kind: "apk", version, notes, mandatory, url, size }); // if they cancel Android's prompt, they can try again
     } catch (e) {

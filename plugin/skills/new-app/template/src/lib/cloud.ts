@@ -140,9 +140,10 @@ type NativePush = {
   checkPermissions(): Promise<{ receive: string }>; requestPermissions(): Promise<{ receive: string }>;
   register(): Promise<void>; unregister(): Promise<void>; addListener(e: string, f: (x: never) => void): Promise<unknown>;
 };
-async function nativePush(): Promise<NativePush> {
+// boxed: awaiting a Capacitor proxy itself calls its `.then` on Android and throws (see updates.ts)
+async function nativePush(): Promise<{ p: NativePush }> {
   const { registerPlugin } = await import("@capacitor/core");
-  return registerPlugin<NativePush>("PushNotifications");
+  return { p: registerPlugin<NativePush>("PushNotifications") };
 }
 
 const err = (e: { message?: string } | null) => { if (e) throw new Error(arabicError(e.message ?? "")); };
@@ -438,7 +439,7 @@ export const cloud = {
     async state(): Promise<PushState> {
       if (!cloud.push.supported()) return "unsupported";
       if (cloud.push.native()) {
-        const P = await nativePush();
+        const P = (await nativePush()).p;
         const p = await P.checkPermissions();
         return p.receive === "granted" ? (localStorage.getItem(`forge-push-${APP}`) === "1" ? "on" : "default") : p.receive === "denied" ? "denied" : "default";
       }
@@ -451,7 +452,7 @@ export const cloud = {
       if (!cloud.push.supported()) return "unsupported";
       await ensureSession();
       if (cloud.push.native()) {
-        const P = await nativePush();
+        const P = (await nativePush()).p;
         const perm = await P.requestPermissions();
         if (perm.receive !== "granted") return "denied";
         const token = await new Promise<string>((resolve, reject) => {
@@ -481,7 +482,7 @@ export const cloud = {
     },
     async disable() {
       if (!enabled) return;
-      if (cloud.push.native()) { localStorage.removeItem(`forge-push-${APP}`); await (await nativePush()).unregister().catch(() => {}); return; }
+      if (cloud.push.native()) { localStorage.removeItem(`forge-push-${APP}`); await (await nativePush()).p.unregister().catch(() => {}); return; }
       const reg = await navigator.serviceWorker.getRegistration("./forge-push/");
       const sub = await reg?.pushManager.getSubscription();
       if (sub) { await sb().from("forge_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }

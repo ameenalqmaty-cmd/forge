@@ -27,12 +27,12 @@ export function playNotify() {
 }
 
 /** native APK: the channel Android uses for every Forge notification (custom tone, high importance) + play when one arrives while the app is open */
-export async function initNotifySound(nativePush: () => Promise<{ addListener(e: string, f: (x: never) => void): Promise<unknown> }>) {
+export async function initNotifySound(nativePush: () => Promise<{ p: { addListener(e: string, f: (x: never) => void): Promise<unknown> } }>) {
   if (typeof window === "undefined") return;
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   if (cap?.isNativePlatform?.()) {
     try {
-      const P = (await nativePush()) as unknown as { createChannel?: (c: object) => Promise<void>; addListener: (e: string, f: () => void) => Promise<unknown> };
+      const P = (await nativePush()).p as unknown as { createChannel?: (c: object) => Promise<void>; addListener: (e: string, f: () => void) => Promise<unknown> };
       await P.createChannel?.({ id: "forge-default", name: "التنبيهات", description: "تنبيهات التطبيق", importance: 5, sound: "notify", vibration: true, visibility: 1 }).catch(() => {});
       void P.addListener("pushNotificationReceived", playNotify);
     } catch { /* plugin missing (APK built without Firebase): nothing to set up */ }
