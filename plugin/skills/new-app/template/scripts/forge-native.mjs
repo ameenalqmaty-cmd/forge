@@ -19,6 +19,8 @@ const parts = [
   read("assets/icon.png") ? createHash("sha256").update(readFileSync("assets/icon.png")).digest("hex") : "",
   read(".forge/brand.json"),
   existsSync(".forge/google-services.json") ? "push" : "",
+  // the app's own notification tone (public/sounds/custom-notify.wav) is baked into the APK: changing it = new APK
+  ...(existsSync("public/sounds/custom-notify.wav") ? ["tone:" + createHash("sha256").update(readFileSync("public/sounds/custom-notify.wav")).digest("hex")] : []),
   "updater-1",
   // bump this number whenever android.yml changes what the APK itself does (MainActivity patch, manifest entries,
   // notification channel/tone, native resources): installed APKs then see "install the new APK" after the next publish
