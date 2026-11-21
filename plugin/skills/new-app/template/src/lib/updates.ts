@@ -10,6 +10,7 @@
  * Only active inside APKs built by Forge with the updater (android.yml); on the web it does nothing.
  */
 import { useEffect, useRef, useState } from "react";
+import { cloud } from "./cloud";
 
 type Bundle = { id: string; version: string };
 type Updater = {
@@ -52,6 +53,31 @@ async function plugin<T>(name: string): Promise<{ p: T }> {
   return { p: registerPlugin<T>(name) };
 }
 
+// A new bundle MUST report itself ready within appReadyTimeout (15 s) or Capacitor Updater silently rolls back to the previous bundle
+// (then the same update is offered again, in a loop). So do it the moment this file loads, never from a component that mounts late.
+const WANT_KEY = `forge-update-want-${APP}`;
+let readyOnce: Promise<void> | null = null;
+function reportReady(): Promise<void> {
+  if (readyOnce) return readyOnce;
+  readyOnce = (async () => {
+    if (!native()) return;
+    try {
+      const up = (await plugin<Updater>("CapacitorUpdater")).p;
+      await up.notifyAppReady();
+      let want: string | null = null;
+      try { want = localStorage.getItem(WANT_KEY); } catch { /* */ }
+      if (want) { // we asked for this bundle before the last reload: say what happened (visible in Studio → التشغيل → الأحداث)
+        try { localStorage.removeItem(WANT_KEY); } catch { /* */ }
+        const cur = await up.current();
+        const ok = cur.bundle.version === want;
+        try { cloud.track(ok ? "update_applied" : "update_rolled_back", { want, got: cur.bundle.version }); } catch { /* */ }
+      }
+    } catch (e) { console.warn("[forge-updates] notifyAppReady", e); }
+  })();
+  return readyOnce;
+}
+if (typeof window !== "undefined") void reportReady();
+
 async function latest(): Promise<Release | null> {
   const r = await fetch(`${URL_}/rest/v1/rpc/forge_latest_release`, {
     method: "POST", headers: { apikey: KEY!, "Content-Type": "application/json" }, body: JSON.stringify({ a: APP, nat: NATIVE }),
@@ -69,7 +95,6 @@ async function versions(up: Updater) {
   return { web, apk };
 }
 
-let started = false;
 export function useAppUpdates() {
   const [state, setState] = useState<UpdateState>({ kind: "idle" });
   const busy = useRef(false);
@@ -82,7 +107,7 @@ export function useAppUpdates() {
       busy.current = true;
       try {
         const up = (await plugin<Updater>("CapacitorUpdater")).p;
-        if (!started) { started = true; await up.notifyAppReady().catch(() => {}); } // keeps this bundle (no automatic rollback)
+        await reportReady(); // keeps this bundle (no automatic rollback)
         const rel = await latest();
         if (!rel || !alive) return;
         const v = await versions(up);
@@ -104,6 +129,7 @@ export function useAppUpdates() {
           const have = (await up.list()).bundles.find((b) => b.version === rel.web!.version);
           const bundle = have ?? (await up.download({ url: rel.web.url, version: rel.web.version }));
           await sub?.remove();
+          try { localStorage.setItem(WANT_KEY, rel.web.version); } catch { /* */ }
           if (mandatory) { await up.set({ id: bundle.id }); return; } // reloads into the new version
           await up.next({ id: bundle.id }); // applied on the next launch anyway
           if (alive) setState({ kind: "web-ready", version: rel.web.version, notes: rel.web.notes, mandatory: false, bundle });
@@ -124,6 +150,7 @@ export function useAppUpdates() {
     if (state.kind !== "web-ready") return;
     const up = (await plugin<Updater>("CapacitorUpdater")).p;
     setState({ kind: "web-applying", percent: 100, notes: state.notes });
+    try { localStorage.setItem(WANT_KEY, state.version); } catch { /* */ }
     await up.set({ id: state.bundle.id });
   };
 

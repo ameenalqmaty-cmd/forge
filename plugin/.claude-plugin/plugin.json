@@ -1,6 +1,6 @@
 {
   "name": "forge",
-  "version": "0.1.32",
+  "version": "0.1.33",
   "description": "Personal app factory: one prompt → a professional Arabic (RTL) app with themed UI, responsive layout for phone/tablet/desktop, automatic visual QA, all icons, Android APK and Cloudflare deploy.",
   "author": {
     "name": "Ahmed Alqmaty"
