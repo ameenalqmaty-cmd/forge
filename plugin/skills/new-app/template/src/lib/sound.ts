@@ -21,8 +21,34 @@ if (typeof window !== "undefined") {
   addEventListener("keydown", unlock);
 }
 
-/** plays the tone once; silent (never throws) if the browser still blocks audio */
-export function playNotify() {
+/** inside Studio's preview (iframe): Studio draws the notification like Android would, with this app's tone */
+const inStudio = typeof window !== "undefined" && (() => { try { return window.top !== window; } catch { return true; } })();
+function toStudio(title: string, body: string) {
+  try { window.parent.postMessage({ type: "forge-notify", title, body }, "*"); return true; } catch { return false; }
+}
+
+/**
+ * Show a notification to the person, the same way everywhere:
+ * - Studio preview → an Android-style banner on top of the phone frame + the app's tone (browsers can't show real ones there)
+ * - APK / web with permission → a real system notification (web) + the tone while the app is open
+ * Use it for reminders and updates the app itself raises (a new message, a turn, a reminder) — not for every toast.
+ */
+export async function notify(title: string, body = "") {
+  if (inStudio && toStudio(title, body)) return;
+  playNotify();
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted" && "serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration("./forge-push/") ?? await navigator.serviceWorker.getRegistration();
+      const icon = new URL("./icons/icon-192.png", document.baseURI).href;
+      if (reg) await reg.showNotification(title, { body, icon, badge: new URL("./icons/badge-96.png", document.baseURI).href, tag: `forge-${Date.now()}` });
+      else new Notification(title, { body, icon });
+    }
+  } catch { /* the tone was played; nothing else to do */ }
+}
+
+/** plays the tone once; silent (never throws) if the browser still blocks audio. In Studio's preview the banner plays it. */
+export function playNotify(title?: string, body?: string) {
+  if (inStudio && title && toStudio(title, body ?? "")) return;
   try { const a = el(); if (!a) return; a.currentTime = 0; void a.play().catch(() => {}); } catch { /* ignore */ }
 }
 
@@ -37,6 +63,6 @@ export async function initNotifySound(nativePush: () => Promise<{ p: { addListen
       void P.addListener("pushNotificationReceived", playNotify);
     } catch { /* plugin missing (APK built without Firebase): nothing to set up */ }
   } else if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("message", (e) => { if ((e.data as { type?: string } | null)?.type === "forge-push") playNotify(); });
+    navigator.serviceWorker.addEventListener("message", (e) => { const d = e.data as { type?: string; title?: string; body?: string } | null; if (d?.type === "forge-push") playNotify(d.title, d.body); });
   }
 }

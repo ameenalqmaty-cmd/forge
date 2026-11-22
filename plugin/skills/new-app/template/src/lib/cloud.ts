@@ -16,7 +16,8 @@
  * Writing needs a signed-in user: cloud.auth.signInAnon() for a device account, or signUp/signIn with email.
  * App admins (set in Forge Studio → التشغيل → الأشخاص) can read and edit every row of the app.
  */
-import { initNotifySound, playNotify } from "./sound";
+import { initNotifySound, notify, playNotify } from "./sound";
+export { notify };
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
@@ -110,6 +111,15 @@ function startAuth() {
     if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") void toCloudUser(session?.user).then(setUser);
   });
 }
+/**
+ * Robots (link previews in WhatsApp/Messenger/Telegram, crawlers, security scanners, headless browsers) open the published
+ * link too. They must not become "visitors": no device account, no visit recorded.
+ */
+export const isRobot = typeof navigator !== "undefined" && (navigator.webdriver === true
+  || /bot\b|bot\/|crawl|spider|slurp|headless|facebookexternalhit|facebot|meta-external|whatsapp|telegram|discord|skype|preview|lighthouse|pagespeed|google-|bingpreview|yandex|baidu|embedly|quora|pinterest|vkshare|w3c_validator|cloudflare|uptime|monitor|python-|curl\/|wget/i.test(navigator.userAgent));
+/** what the person is running: "1.0.3" right after an APK, "1.0.3-a2" after the 2nd web update on top of it */
+export const appLabel: string = (import.meta.env.VITE_FORGE_LABEL as string | undefined) || (import.meta.env.VITE_FORGE_STAGE === "test" ? "تجريبية" : "");
+
 /** Inside Studio's preview (iframe / ?forge_preview=1) the device account is labelled so Ahmed can tell it apart. */
 const inPreview = typeof window !== "undefined" && (new URLSearchParams(location.search).has("forge_preview") || (() => { try { return window.top !== window; } catch { return true; } })());
 
@@ -121,6 +131,7 @@ let anonFlight: Promise<void> | null = null;
 async function ensureSession() {
   const { data } = await sb().auth.getSession();
   if (data.session) return;
+  if (isRobot) throw new Error("robot: no device account");
   anonFlight ??= (async () => {
     const run = async () => {
       const again = await sb().auth.getSession();
@@ -193,11 +204,11 @@ function recordScreen() {
 }
 let tracking = false;
 function startTracking() {
-  if (tracking || !enabled || typeof window === "undefined") return;
+  if (tracking || !enabled || typeof window === "undefined" || isRobot) return;
   tracking = true;
   const native = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
   const pwa = matchMedia?.("(display-mode: standalone)").matches;
-  push("session", "open", { platform: native ? "apk" : pwa ? "pwa" : "web", w: innerWidth, h: innerHeight, lang: navigator.language });
+  push("session", "open", { platform: native ? "apk" : pwa ? "pwa" : "web", w: innerWidth, h: innerHeight, lang: navigator.language, v: appLabel || undefined, ua: clip(navigator.userAgent, 160) });
   recordScreen();
   addEventListener("hashchange", recordScreen);
   addEventListener("error", (e) => {
@@ -574,7 +585,8 @@ export function useMessages() {
       setError(null);
       const list = await cloud.messages.inbox();
       const ids = new Set(list.filter((m) => !m.read).map((m) => m.id));
-      if (seen.current && [...ids].some((id) => !seen.current!.has(id)) && document.visibilityState === "visible") playNotify();
+      const fresh = seen.current ? list.find((m) => !m.read && !seen.current!.has(m.id)) : undefined;
+      if (fresh && document.visibilityState === "visible") playNotify(fresh.title, fresh.body);
       seen.current = ids;
       setMessages(list);
     } catch (e) { setError(e instanceof Error ? e.message : "تعذّر التحميل"); }

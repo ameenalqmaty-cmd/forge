@@ -38,24 +38,41 @@ function roleSoon(ms = 4000): Promise<string | null> {
   });
 }
 
+/** APK: the system splash (same logo, same place as the launcher icon animation) fades straight into the app */
+function hideNativeSplash() {
+  const sp = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { SplashScreen?: { hide(o?: { fadeOutDuration?: number }): Promise<void> } } } }).Capacitor;
+  if (!sp?.isNativePlatform?.()) return;
+  try { void sp.Plugins?.SplashScreen?.hide({ fadeOutDuration: 250 })?.catch?.(() => {}); } catch { /* the splash hides itself after 8 s */ }
+}
+
 /** fade out the boot screen; while it is up the status bar matches it */
 function useBootScreen(ready: boolean) {
   useEffect(() => {
     const boot = document.getElementById("forge-boot");
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (!boot) return;
+    if (!boot) { if (ready) hideNativeSplash(); return; } // imported apps: no boot screen, still release the splash
     if (!ready) {
       const brand = getComputedStyle(boot).backgroundColor;
       if (meta && brand) { meta.setAttribute("data-app", meta.getAttribute("content") ?? ""); meta.setAttribute("content", brand); }
       return;
     }
-    const t = requestAnimationFrame(() => {
-      boot.classList.add("out");
-      const app = meta?.getAttribute("data-app");
-      if (meta && app) meta.setAttribute("content", app);
-      setTimeout(() => boot.remove(), 400);
-    });
-    return () => cancelAnimationFrame(t);
+    // open on the real screen, not on loading placeholders: wait until no Skeleton is drawn (at most 1.5 s more)
+    let off = false;
+    const started = Date.now();
+    const reveal = () => {
+      if (off) return;
+      if (document.querySelector("[data-skeleton]") && Date.now() - started < 1500) { setTimeout(reveal, 60); return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => { // two frames: the screen is painted under the splash
+        if (off) return;
+        hideNativeSplash();
+        boot.classList.add("out");
+        const app = meta?.getAttribute("data-app");
+        if (meta && app) meta.setAttribute("content", app);
+        setTimeout(() => boot.remove(), 300);
+      }));
+    };
+    reveal();
+    return () => { off = true; };
   }, [ready]);
 }
 

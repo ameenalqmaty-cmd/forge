@@ -56,7 +56,7 @@ jobs:
           N=$(node scripts/forge-native.mjs)   # before adding plugins (they are excluded anyway)
           npm i --no-audit --no-fund @capgo/capacitor-updater@^8 @capacitor/filesystem@^8 @capawesome-team/capacitor-file-opener@^8
           V=$(date -u +%Y%m%d%H%M%S)
-          { echo "VITE_FORGE_NATIVE=$N"; echo "VITE_FORGE_WEB_VERSION=$V"; echo "VITE_FORGE_APK_VERSION=$V"; echo "APK_VERSION=$V"; } >> "$GITHUB_ENV"
+          { echo "VITE_FORGE_NATIVE=$N"; echo "VITE_FORGE_WEB_VERSION=$V"; echo "VITE_FORGE_APK_VERSION=$V"; echo "APK_VERSION=$V"; echo "VITE_FORGE_LABEL=$(jq -r '.version // "1.0.0"' forge.config.json)"; } >> "$GITHUB_ENV"
           [ -f .forge/cloud.json ] && echo "VITE_FORGE_UPDATER=1" >> "$GITHUB_ENV" || true
           echo "native $N · version $V"
 

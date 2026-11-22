@@ -8,7 +8,7 @@ self.addEventListener("push", (event) => {
   try { d = event.data ? event.data.json() : {}; } catch { d = { title: event.data && event.data.text() }; }
   const base = self.registration.scope.replace(/forge-push\/?$/, "");
   // an open page plays the tone itself (a push can't); see src/lib/sound.ts
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => all.forEach((c) => c.postMessage({ type: "forge-push" }))));
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((all) => all.forEach((c) => c.postMessage({ type: "forge-push", title: d.title || "تنبيه جديد", body: d.body || "" }))));
   event.waitUntil(self.registration.showNotification(d.title || "تنبيه جديد", {
     body: d.body || "",
     icon: base + "icons/icon-192.png",

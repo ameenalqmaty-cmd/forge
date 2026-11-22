@@ -25,7 +25,7 @@ export function Avatar({ src, name, className }: { src?: string; name: string; c
 }
 
 export const Skeleton = ({ className, ...p }: ComponentProps<"div">) => (
-  <div className={cn("animate-pulse rounded-md bg-muted", className)} {...p} />
+  <div data-skeleton="" className={cn("animate-pulse rounded-md bg-muted", className)} {...p} />
 );
 
 export const Separator = ({ className }: { className?: string }) => <div role="separator" className={cn("h-px w-full bg-border", className)} />;
